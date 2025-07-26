@@ -495,7 +495,11 @@ def pricing():
         .all()
     )
     features = ['custom_colors', 'advanced_styles', 'logo_embedding', 'analytics']
-    return render_template('pricing.html', tiers=tiers, features=features)
+    # Pass the built-in ``getattr`` so Jinja can dynamically access
+    # tier limits/unlimited flags in the template.  Without this the
+    # templates raise an UndefinedError for ``getattr``.
+    return render_template('pricing.html', tiers=tiers, features=features,
+                           getattr=getattr)
 
 
 @app.route('/subscribe', methods=['GET', 'POST'])
@@ -622,7 +626,10 @@ def admin_tiers():
         db.session.commit()
         flash('Tiers updated')
         return redirect(url_for('admin_tiers'))
-    return render_template('admin_tiers.html', tiers=tiers, features=features)
+    # Provide ``getattr`` to the template so feature limits can be
+    # resolved dynamically for each tier column.
+    return render_template('admin_tiers.html', tiers=tiers,
+                           features=features, getattr=getattr)
 
 
 @app.route('/admin/tiers/delete/<int:tier_id>')
