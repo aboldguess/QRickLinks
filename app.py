@@ -521,11 +521,50 @@ def initialize_database() -> None:
             db.session.execute(text("ALTER TABLE user ADD COLUMN is_admin BOOLEAN DEFAULT 0"))
             db.session.commit()
 
-        # Add the short_code column to the link table if it is missing
-        link_columns = [row[1] for row in db.session.execute(text("PRAGMA table_info(link)")).fetchall()]
+        # Retrieve column information for the link table so we can determine
+        # which fields may need to be added. Existing installations may not have
+        # all the customisation options that newer versions include.
+        link_columns = [
+            row[1] for row in db.session.execute(text("PRAGMA table_info(link)")).fetchall()
+        ]
+
+        # ------------------------------------------------------------------
+        # Customisation columns
+        # ------------------------------------------------------------------
+        # These columns store the user's QR code settings. They must exist
+        # before we query using the Link model, otherwise SQLAlchemy will try to
+        # select fields that SQLite doesn't know about.
+        customization_map = {
+            "fill_color": "VARCHAR(7) DEFAULT '#000000'",
+            "back_color": "VARCHAR(7) DEFAULT '#FFFFFF'",
+            "box_size": "INTEGER DEFAULT 10",
+            "border": "INTEGER DEFAULT 4",
+            "pattern": "VARCHAR(10) DEFAULT 'square'",
+            "error_correction": "VARCHAR(1) DEFAULT 'M'",
+        }
+
+        added_custom_columns = False
+        for column, ddl in customization_map.items():
+            if column not in link_columns:
+                db.session.execute(text(f"ALTER TABLE link ADD COLUMN {column} {ddl}"))
+                added_custom_columns = True
+
+        if added_custom_columns:
+            db.session.commit()
+            # Refresh column list so subsequent checks see the newly added ones
+            link_columns = [
+                row[1] for row in db.session.execute(text("PRAGMA table_info(link)")).fetchall()
+            ]
+
+        # ------------------------------------------------------------------
+        # short_code column
+        # ------------------------------------------------------------------
+        # Add the short_code column after the customisation columns are in
+        # place. This ensures Link.query works without hitting missing-column
+        # errors when populating values for existing rows.
         if 'short_code' not in link_columns:
-            # SQLite does not allow adding a UNIQUE column directly, so add the
-            # column first and create a unique index afterwards.
+            # SQLite doesn't allow adding a UNIQUE column directly; add the
+            # column first then create a unique index.
             db.session.execute(text("ALTER TABLE link ADD COLUMN short_code VARCHAR(10)"))
             db.session.commit()
 
@@ -540,27 +579,9 @@ def initialize_database() -> None:
             # Enforce uniqueness using an index instead of a column constraint
             db.session.execute(
                 text(
-                    "CREATE UNIQUE INDEX IF NOT EXISTS idx_link_short_code "
-                    "ON link (short_code)"
+                    "CREATE UNIQUE INDEX IF NOT EXISTS idx_link_short_code ON link (short_code)"
                 )
             )
-            db.session.commit()
-
-        # Add customisation columns if they are missing so existing
-        # installations pick up new features without manual migrations.
-        if 'fill_color' not in link_columns:
-            db.session.execute(text("ALTER TABLE link ADD COLUMN fill_color VARCHAR(7) DEFAULT '#000000'"))
-        if 'back_color' not in link_columns:
-            db.session.execute(text("ALTER TABLE link ADD COLUMN back_color VARCHAR(7) DEFAULT '#FFFFFF'"))
-        if 'box_size' not in link_columns:
-            db.session.execute(text("ALTER TABLE link ADD COLUMN box_size INTEGER DEFAULT 10"))
-        if 'border' not in link_columns:
-            db.session.execute(text("ALTER TABLE link ADD COLUMN border INTEGER DEFAULT 4"))
-        if 'pattern' not in link_columns:
-            db.session.execute(text("ALTER TABLE link ADD COLUMN pattern VARCHAR(10) DEFAULT 'square'"))
-        if 'error_correction' not in link_columns:
-            db.session.execute(text("ALTER TABLE link ADD COLUMN error_correction VARCHAR(1) DEFAULT 'M'"))
-        if any(col not in link_columns for col in ['fill_color', 'back_color', 'box_size', 'border', 'pattern', 'error_correction']):
             db.session.commit()
 
         # Ensure a settings row is present
