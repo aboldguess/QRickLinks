@@ -57,11 +57,19 @@
   <tbody>
     {% for link in links %}
     <tr>
-      <td>{{ link.slug }}</td>
-      <td><a href="{{ link.original_url }}" target="_blank">{{ link.original_url }}</a></td>
+      <td>
+        <a href="{{ base_url }}/{{ link.slug }}" target="_blank">{{ link.slug }}</a>
+      </td>
+      <td>
+        <a href="{{ link.original_url }}" target="_blank">{{ link.original_url }}</a>
+      </td>
       <td><img src="{{ url_for('serve_qr', filename=link.qr_filename) }}" width="100"></td>
       <td>{{ link.visit_count }}</td>
-      <td><a href="{{ url_for('download_qr', filename=link.qr_filename) }}" class="btn btn-sm btn-secondary">Download</a></td>
+      <td>
+        <a href="{{ url_for('download_qr', filename=link.qr_filename) }}" class="btn btn-sm btn-secondary">
+          Download
+        </a>
+      </td>
     </tr>
     {% endfor %}
   </tbody>

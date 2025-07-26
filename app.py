@@ -96,10 +96,15 @@ NOUNS = [
 
 
 def generate_words() -> str:
-    """Generate a random 'adjective.adjective.noun' slug."""
-    first_adj = random.choice(ADJECTIVES)
-    second_adj = random.choice(ADJECTIVES)
-    noun = random.choice(NOUNS)
+    """Generate a random slug in the form ``adjective.Adjective.Noun``."""
+
+    # Choose words from the predefined word lists. The first adjective is left
+    # lowercase while the second adjective and the noun are capitalised to
+    # match the desired pattern.
+    first_adj = random.choice(ADJECTIVES).lower()
+    second_adj = random.choice(ADJECTIVES).capitalize()
+    noun = random.choice(NOUNS).capitalize()
+
     return f"{first_adj}.{second_adj}.{noun}"
 
 
@@ -191,9 +196,15 @@ def admin_required(f):
 @app.route('/')
 @login_required
 def index():
-    """Show dashboard with user's links."""
+    """Show the dashboard listing the current user's links."""
+
     links = Link.query.filter_by(owner=current_user).all()
-    return render_template('dashboard.html', links=links)
+
+    # Pass the configured base URL so templates can construct the full short
+    # link for each slug.
+    base_url = get_settings().base_url.rstrip('/')
+
+    return render_template('dashboard.html', links=links, base_url=base_url)
 
 
 @app.route('/register', methods=['GET', 'POST'])
