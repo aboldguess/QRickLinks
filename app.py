@@ -160,6 +160,22 @@ class Payment(db.Model):
     # Relationship back to the paying user
     user = db.relationship('User', backref='payments', lazy=True)
 
+class SubscriptionTier(db.Model):
+    """Defines a pricing tier with feature limits."""
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), nullable=False, unique=True)
+    regular_price = db.Column(db.Float, default=0.0)
+    discounted_price = db.Column(db.Float, default=0.0)
+    highlight_text = db.Column(db.String(100))
+    custom_colors_limit = db.Column(db.Integer)
+    custom_colors_unlimited = db.Column(db.Boolean, default=False)
+    advanced_styles_limit = db.Column(db.Integer)
+    advanced_styles_unlimited = db.Column(db.Boolean, default=False)
+    logo_embedding_limit = db.Column(db.Integer)
+    logo_embedding_unlimited = db.Column(db.Boolean, default=False)
+    analytics_limit = db.Column(db.Integer)
+    analytics_unlimited = db.Column(db.Boolean, default=False)
+    archived = db.Column(db.Boolean, default=False)
 
 @login_manager.user_loader
 def load_user(user_id: str):
@@ -472,8 +488,14 @@ def logout():
 
 @app.route('/pricing')
 def pricing():
-    """Display subscription options."""
-    return render_template('pricing.html')
+    """Display subscription options pulled from the database."""
+    tiers = (
+        SubscriptionTier.query.filter_by(archived=False)
+        .order_by(SubscriptionTier.id)
+        .all()
+    )
+    features = ['custom_colors', 'advanced_styles', 'logo_embedding', 'analytics']
+    return render_template('pricing.html', tiers=tiers, features=features)
 
 
 @app.route('/subscribe', methods=['GET', 'POST'])
@@ -570,6 +592,59 @@ def admin_users():
         )
     return render_template("admin_users.html", users=user_rows)
 
+@app.route('/admin/tiers', methods=['GET', 'POST'])
+@admin_required
+def admin_tiers():
+    """Create and edit subscription tiers."""
+    features = ['custom_colors', 'advanced_styles', 'logo_embedding', 'analytics']
+    tiers = SubscriptionTier.query.order_by(SubscriptionTier.id).all()
+    if request.method == 'POST':
+        new_name = request.form.get('new_tier_name')
+        if new_name:
+            # Create a new tier using the provided name
+            db.session.add(SubscriptionTier(name=new_name))
+            db.session.commit()
+            flash('Tier added')
+            return redirect(url_for('admin_tiers'))
+        # Update existing tiers with submitted values
+        for tier in tiers:
+            tier.regular_price = float(request.form.get(f'{tier.id}_regular_price', tier.regular_price or 0))
+            tier.discounted_price = float(request.form.get(f'{tier.id}_discounted_price', tier.discounted_price or 0))
+            tier.highlight_text = request.form.get(f'{tier.id}_highlight_text', '')
+            for feat in features:
+                limit_val = request.form.get(f'{tier.id}_{feat}_limit')
+                unlimited = request.form.get(f'{tier.id}_{feat}_unlimited')
+                setattr(tier, f'{feat}_unlimited', bool(unlimited))
+                if unlimited:
+                    setattr(tier, f'{feat}_limit', None)
+                else:
+                    setattr(tier, f'{feat}_limit', int(limit_val) if limit_val else 0)
+        db.session.commit()
+        flash('Tiers updated')
+        return redirect(url_for('admin_tiers'))
+    return render_template('admin_tiers.html', tiers=tiers, features=features)
+
+
+@app.route('/admin/tiers/delete/<int:tier_id>')
+@admin_required
+def delete_tier(tier_id: int):
+    """Permanently remove a subscription tier."""
+    tier = SubscriptionTier.query.get_or_404(tier_id)
+    db.session.delete(tier)
+    db.session.commit()
+    flash('Tier deleted')
+    return redirect(url_for('admin_tiers'))
+
+
+@app.route('/admin/tiers/archive/<int:tier_id>')
+@admin_required
+def archive_tier(tier_id: int):
+    """Toggle the archived state of a tier."""
+    tier = SubscriptionTier.query.get_or_404(tier_id)
+    tier.archived = not tier.archived
+    db.session.commit()
+    flash('Tier archived' if tier.archived else 'Tier restored')
+    return redirect(url_for('admin_tiers'))
 
 @app.route('/create', methods=['POST'])
 @login_required
@@ -975,6 +1050,17 @@ def initialize_database() -> None:
             admin = User(username='philadmin', is_admin=True)
             admin.set_password('Admin12345')
             db.session.add(admin)
+            db.session.commit()
+
+        # Create some default subscription tiers if none exist
+        if SubscriptionTier.query.count() == 0:
+            db.session.add_all([
+                SubscriptionTier(name='Free'),
+                SubscriptionTier(name='Basic Monthly', regular_price=5.0),
+                SubscriptionTier(name='Basic Yearly', regular_price=50.0),
+                SubscriptionTier(name='Pro Monthly', regular_price=10.0),
+                SubscriptionTier(name='Pro Yearly', regular_price=100.0),
+            ])
             db.session.commit()
 
 
