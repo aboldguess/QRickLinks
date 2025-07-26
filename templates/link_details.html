@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Details for {{ link.slug }}</h2>
+<p>Total Clicks: {{ total_clicks }}</p>
+<p>
+  Unique Clicks: {{ unique_count }}
+  <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#unique" aria-expanded="false" aria-controls="unique">Show</button>
+</p>
+<div class="collapse" id="unique">
+  <ul class="list-group">
+  {% for pair, times in visit_map.items() %}
+    {% set ip = pair[0] %}
+    {% set mac = pair[1] %}
+    <li class="list-group-item">
+      <strong>{{ ip }}{% if mac %} ({{ mac }}){% endif %}</strong>
+      <ul class="mb-0">
+        {% for t in times %}
+        <li>{{ t }}</li>
+        {% endfor %}
+      </ul>
+    </li>
+  {% endfor %}
+  </ul>
+</div>
+<div id="map" style="height:400px" class="mt-3"></div>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  const map = L.map('map').setView([0,0], 2);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19}).addTo(map);
+  const ips = {{ visit_map.keys()|list|map(attribute=0)|tojson }};
+  ips.forEach(ip => {
+    fetch('http://ip-api.com/json/' + ip)
+      .then(r => r.json())
+      .then(d => {
+        if(d.status === 'success'){
+          L.marker([d.lat, d.lon]).addTo(map).bindPopup(ip);
+        }
+      });
+  });
+</script>
+{% endblock %}

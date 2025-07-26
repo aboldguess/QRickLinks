@@ -93,6 +93,8 @@ class Visit(db.Model):
     link_id = db.Column(db.Integer, db.ForeignKey('link.id'), nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     ip = db.Column(db.String(100))
+    # Optional MAC address resolved from the ARP cache for local clients
+    mac = db.Column(db.String(100))
     referrer = db.Column(db.String(2048))
 
 
@@ -143,6 +145,21 @@ def normalize_url(url: str) -> str:
     if not urlparse(url).scheme:
         return f"https://{url}"
     return url
+
+
+def get_mac_address(ip: str) -> str | None:
+    """Lookup the MAC address for an IP from the OS ARP cache."""
+    try:
+        output = os.popen(f"arp -n {ip}").read()
+        for line in output.splitlines():
+            if ip in line:
+                parts = line.split()
+                for part in parts:
+                    if part.count(":") == 5:
+                        return part
+    except Exception:
+        pass
+    return None
 
 
 def create_qr_code(
@@ -486,6 +503,33 @@ def customize_link(link_id: int):
     return redirect(url_for('index'))
 
 
+@app.route('/details/<int:link_id>')
+@login_required
+def link_details(link_id: int):
+    """Display analytics and visit information for a single link."""
+    link = Link.query.get_or_404(link_id)
+    if link.owner != current_user:
+        abort(403)
+
+    # Retrieve all visits for this link ordered newest first
+    visits = Visit.query.filter_by(link_id=link.id).order_by(Visit.timestamp.desc()).all()
+
+    # Collate unique visitors by their IP/MAC pair so we can count them and show
+    # when each visitor accessed the link
+    unique_map: dict[tuple[str | None, str | None], list[datetime]] = {}
+    for v in visits:
+        key = (v.ip, v.mac)
+        unique_map.setdefault(key, []).append(v.timestamp)
+
+    return render_template(
+        'link_details.html',
+        link=link,
+        total_clicks=link.visit_count,
+        unique_count=len(unique_map),
+        visit_map=unique_map,
+    )
+
+
 @app.route('/<slug>')
 def redirect_link(slug: str):
     """Redirect to the original URL and record visit information."""
@@ -495,9 +539,13 @@ def redirect_link(slug: str):
     ).first_or_404()
     link.visit_count += 1
 
+    # Attempt to capture a MAC address for local visitors using the ARP cache
+    mac = get_mac_address(request.remote_addr)
+
     visit = Visit(
         link=link,
         ip=request.remote_addr,
+        mac=mac,
         referrer=request.referrer
     )
     db.session.add(visit)
@@ -528,6 +576,10 @@ def initialize_database() -> None:
         # all the customisation options that newer versions include.
         link_columns = [
             row[1] for row in db.session.execute(text("PRAGMA table_info(link)")).fetchall()
+        ]
+
+        visit_columns = [
+            row[1] for row in db.session.execute(text("PRAGMA table_info(visit)")).fetchall()
         ]
 
         # ------------------------------------------------------------------
@@ -584,6 +636,12 @@ def initialize_database() -> None:
                     "CREATE UNIQUE INDEX IF NOT EXISTS idx_link_short_code ON link (short_code)"
                 )
             )
+            db.session.commit()
+
+        # If the visit table lacks a MAC address column add it so future visits
+        # can store hardware information when available.
+        if 'mac' not in visit_columns:
+            db.session.execute(text("ALTER TABLE visit ADD COLUMN mac VARCHAR(100)"))
             db.session.commit()
 
         # Ensure a settings row is present

@@ -77,6 +77,7 @@
       <td>{{ link.visit_count }}</td>
       <td>
         <a href="{{ url_for('download_qr', filename=link.qr_filename) }}" class="btn btn-sm btn-secondary mb-1">Download</a>
+        <a href="{{ url_for('link_details', link_id=link.id) }}" class="btn btn-sm btn-info mb-1">Details</a>
         <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#c{{ link.id }}" aria-expanded="false" aria-controls="c{{ link.id }}">Customize</button>
       </td>
     </tr>
