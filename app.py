@@ -41,6 +41,13 @@ class User(UserMixin, db.Model):
     links = db.relationship('Link', backref='owner', lazy=True)
     # Flag to determine if the user has administrative privileges
     is_admin = db.Column(db.Boolean, default=False)
+    # Subscription flag and usage counters for premium features
+    is_premium = db.Column(db.Boolean, default=False)
+    usage_month = db.Column(db.String(7), default=lambda: datetime.utcnow().strftime('%Y-%m'))
+    custom_colors_used = db.Column(db.Integer, default=0)
+    advanced_styles_used = db.Column(db.Integer, default=0)
+    logo_embedding_used = db.Column(db.Integer, default=0)
+    analytics_used = db.Column(db.Integer, default=0)
 
     def set_password(self, password: str) -> None:
         """Hash and store the user's password."""
@@ -102,6 +109,10 @@ class Setting(db.Model):
     """Stores global application settings."""
     id = db.Column(db.Integer, primary_key=True)
     base_url = db.Column(db.String(512), default='http://localhost:5000')
+    custom_colors_limit = db.Column(db.Integer, default=5)
+    advanced_styles_limit = db.Column(db.Integer, default=5)
+    logo_embedding_limit = db.Column(db.Integer, default=1)
+    analytics_limit = db.Column(db.Integer, default=100)
 
 
 @login_manager.user_loader
@@ -252,6 +263,42 @@ def get_settings() -> Setting:
         db.session.commit()
     return settings
 
+# Map premium features to their Setting quota and User usage fields
+FEATURE_LIMIT_FIELDS = {
+    'custom_colors': ('custom_colors_limit', 'custom_colors_used'),
+    'advanced_styles': ('advanced_styles_limit', 'advanced_styles_used'),
+    'logo_embedding': ('logo_embedding_limit', 'logo_embedding_used'),
+    'analytics': ('analytics_limit', 'analytics_used'),
+}
+
+
+def reset_usage_if_needed(user: User) -> None:
+    """Reset counters when a new month begins."""
+    current_month = datetime.utcnow().strftime('%Y-%m')
+    if user.usage_month != current_month:
+        user.usage_month = current_month
+        user.custom_colors_used = 0
+        user.advanced_styles_used = 0
+        user.logo_embedding_used = 0
+        user.analytics_used = 0
+        db.session.commit()
+
+
+def check_feature_usage(user: User, feature: str) -> bool:
+    """Return True if the user may use the feature, recording usage."""
+    reset_usage_if_needed(user)
+    if user.is_premium:
+        return True
+    settings = get_settings()
+    limit_field, used_field = FEATURE_LIMIT_FIELDS[feature]
+    limit = getattr(settings, limit_field)
+    used = getattr(user, used_field)
+    if used >= limit:
+        return False
+    setattr(user, used_field, used + 1)
+    db.session.commit()
+    return True
+
 
 def admin_required(f):
     """Decorator to restrict routes to admin users only."""
@@ -361,6 +408,10 @@ def admin_settings():
     settings = get_settings()
     if request.method == 'POST':
         settings.base_url = request.form['base_url']
+        settings.custom_colors_limit = int(request.form['custom_colors_limit'])
+        settings.advanced_styles_limit = int(request.form['advanced_styles_limit'])
+        settings.logo_embedding_limit = int(request.form['logo_embedding_limit'])
+        settings.analytics_limit = int(request.form['analytics_limit'])
         db.session.commit()
         flash('Settings updated')
         return redirect(url_for('admin_dashboard'))
@@ -387,6 +438,22 @@ def create_link():
     error_correction = request.form.get("error_correction", "M")
     logo_file = request.files.get("logo")
     logo_filename = None
+
+    # Free tier limits for premium features
+    if (fill_color != "#000000" or back_color != "#FFFFFF") and not check_feature_usage(current_user, 'custom_colors'):
+        flash('Custom colours quota exceeded')
+        return redirect(url_for('index'))
+    if (
+        box_size != 10
+        or border != 4
+        or pattern != 'square'
+        or error_correction != 'M'
+    ) and not check_feature_usage(current_user, 'advanced_styles'):
+        flash('Advanced styling quota exceeded')
+        return redirect(url_for('index'))
+    if logo_file and logo_file.filename and not check_feature_usage(current_user, 'logo_embedding'):
+        flash('Logo embedding quota exceeded')
+        return redirect(url_for('index'))
 
     # Ensure slugs and codes are unique; regenerate if a collision occurs
     while Link.query.filter_by(slug=slug).first() is not None:
@@ -460,6 +527,10 @@ def customize_link(link_id: int):
     link = Link.query.get_or_404(link_id)
     if link.owner != current_user:
         abort(403)
+
+    if not check_feature_usage(current_user, 'analytics'):
+        flash('Analytics quota exceeded')
+        return redirect(url_for('index'))
 
     # Extract customisation parameters from the submitted form
     fill_color = request.form.get("fill_color", "#000000")
@@ -573,6 +644,23 @@ def initialize_database() -> None:
         if 'is_admin' not in columns:
             db.session.execute(text("ALTER TABLE user ADD COLUMN is_admin BOOLEAN DEFAULT 0"))
             db.session.commit()
+        # Paywall related columns
+        user_map = {
+            'is_premium': 'BOOLEAN DEFAULT 0',
+            'usage_month': "VARCHAR(7) DEFAULT '{}'".format(datetime.utcnow().strftime('%Y-%m')),
+            'custom_colors_used': 'INTEGER DEFAULT 0',
+            'advanced_styles_used': 'INTEGER DEFAULT 0',
+            'logo_embedding_used': 'INTEGER DEFAULT 0',
+            'analytics_used': 'INTEGER DEFAULT 0',
+        }
+        added_user_cols = False
+        for column, ddl in user_map.items():
+            if column not in columns:
+                db.session.execute(text(f"ALTER TABLE user ADD COLUMN {column} {ddl}"))
+                added_user_cols = True
+
+        if added_user_cols:
+            db.session.commit()
 
         # Retrieve column information for the link table so we can determine
         # which fields may need to be added. Existing installations may not have
@@ -645,6 +733,23 @@ def initialize_database() -> None:
         # can store hardware information when available.
         if 'mac' not in visit_columns:
             db.session.execute(text("ALTER TABLE visit ADD COLUMN mac VARCHAR(100)"))
+            db.session.commit()
+
+        # Settings table columns for paywall quotas
+        setting_columns = [row[1] for row in db.session.execute(text("PRAGMA table_info(setting)")).fetchall()]
+        setting_map = {
+            'custom_colors_limit': 'INTEGER DEFAULT 5',
+            'advanced_styles_limit': 'INTEGER DEFAULT 5',
+            'logo_embedding_limit': 'INTEGER DEFAULT 1',
+            'analytics_limit': 'INTEGER DEFAULT 100',
+        }
+        added_setting_cols = False
+        for column, ddl in setting_map.items():
+            if column not in setting_columns:
+                db.session.execute(text(f"ALTER TABLE setting ADD COLUMN {column} {ddl}"))
+                added_setting_cols = True
+
+        if added_setting_cols:
             db.session.commit()
 
         # Ensure a settings row is present
