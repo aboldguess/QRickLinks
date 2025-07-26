@@ -49,6 +49,11 @@
           <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#c{{ link.id }}" aria-expanded="false" aria-controls="c{{ link.id }}">
             <span class="icon-sm">C</span><span class="text-label">Customize</span>
           </button>
+          <form method="post" action="{{ url_for('delete_link', link_id=link.id) }}" class="d-inline">
+            <button type="submit" class="btn btn-sm btn-danger mb-1" onclick="return confirm('Delete this link and all visit records? This cannot be undone.');">
+              <span class="icon-sm">X</span><span class="text-label">Delete</span>
+            </button>
+          </form>
         </div>
       </div>
     </div>

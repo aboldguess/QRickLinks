@@ -520,6 +520,29 @@ def download_qr(filename):
     )
 
 
+@app.route('/delete/<int:link_id>', methods=['POST'])
+@login_required
+def delete_link(link_id: int):
+    """Remove a link and all its related records."""
+    link = Link.query.get_or_404(link_id)
+    if link.owner != current_user:
+        abort(403)
+
+    # Erase visit history so no orphan rows remain
+    Visit.query.filter_by(link_id=link.id).delete()
+
+    # Remove the QR code image file from disk if present
+    qr_path = os.path.join('static', 'qr', link.qr_filename)
+    if os.path.exists(qr_path):
+        os.remove(qr_path)
+
+    db.session.delete(link)
+    db.session.commit()
+
+    flash('Link deleted. All associated records were removed and this cannot be undone.')
+    return redirect(url_for('index'))
+
+
 @app.route('/customize/<int:link_id>', methods=['POST'])
 @login_required
 def customize_link(link_id: int):
