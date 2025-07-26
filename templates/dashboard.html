@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block content %}
 <h2>Create new link</h2>
-<form method="post" action="{{ url_for('create_link') }}" enctype="multipart/form-data">
+<form method="post" action="{{ url_for('create_link') }}">
   <div class="mb-3">
     <label for="original_url" class="form-label">Long URL</label>
     <!--
@@ -12,45 +12,11 @@
     -->
     <input type="text" class="form-control" id="original_url" name="original_url" required>
   </div>
-  <div class="mb-3">
-    <label for="fill_color" class="form-label">Foreground Color</label>
-    <input type="color" class="form-control form-control-color" id="fill_color" name="fill_color" value="#000000">
-  </div>
-  <div class="mb-3">
-    <label for="back_color" class="form-label">Background Color</label>
-    <input type="color" class="form-control form-control-color" id="back_color" name="back_color" value="#ffffff">
-  </div>
-  <div class="row">
-    <div class="col-md-3 mb-3">
-      <label for="box_size" class="form-label">Box Size</label>
-      <input type="number" class="form-control" id="box_size" name="box_size" value="10" min="1" max="20">
-    </div>
-    <div class="col-md-3 mb-3">
-      <label for="border" class="form-label">Border</label>
-      <input type="number" class="form-control" id="border" name="border" value="4" min="0" max="10">
-    </div>
-    <div class="col-md-3 mb-3">
-      <label for="pattern" class="form-label">Pattern</label>
-      <select id="pattern" name="pattern" class="form-select">
-        <option value="square" selected>Square</option>
-        <option value="rounded">Rounded</option>
-        <option value="circle">Circle</option>
-      </select>
-    </div>
-    <div class="col-md-3 mb-3">
-      <label for="error_correction" class="form-label">Redundancy</label>
-      <select id="error_correction" name="error_correction" class="form-select">
-        <option value="L">L</option>
-        <option value="M" selected>M</option>
-        <option value="Q">Q</option>
-        <option value="H">H</option>
-      </select>
-    </div>
-  </div>
-  <div class="mb-3">
-    <label for="logo" class="form-label">Central Logo (optional)</label>
-    <input type="file" class="form-control" id="logo" name="logo" accept="image/*">
-  </div>
+  {#
+    The QR code customisation options previously available here have been
+    removed to keep the form simple. After the link is created, these settings
+    can be adjusted from the "Customize" pull-down next to each entry.
+  #}
   <button type="submit" class="btn btn-primary">Shorten</button>
 </form>
 
