@@ -359,6 +359,51 @@ def download_qr(filename):
     )
 
 
+@app.route('/customize/<int:link_id>', methods=['POST'])
+@login_required
+def customize_link(link_id: int):
+    """Update the QR code for an existing link using new options."""
+    link = Link.query.get_or_404(link_id)
+    if link.owner != current_user:
+        abort(403)
+
+    # Extract customisation parameters from the submitted form
+    fill_color = request.form.get("fill_color", "#000000")
+    back_color = request.form.get("back_color", "#FFFFFF")
+    box_size = int(request.form.get("box_size", 10))
+    border = int(request.form.get("border", 4))
+    pattern = request.form.get("pattern", "square")
+    error_correction = request.form.get("error_correction", "M")
+    logo_file = request.files.get("logo")
+    logo_filename = None
+
+    if logo_file and logo_file.filename:
+        # Store the uploaded logo file under a predictable name
+        logo_filename = f"{link.slug}_{secure_filename(logo_file.filename)}"
+        logo_path = os.path.join("static", "logos", logo_filename)
+        logo_file.save(logo_path)
+
+    # Short URL is built from current settings and the link's slug
+    base_url = get_settings().base_url.rstrip('/')
+    short_url = f"{base_url}/{link.slug}"
+
+    # Regenerate the QR code image and update the filename field
+    link.qr_filename = create_qr_code(
+        short_url,
+        link.slug,
+        fill_color=fill_color,
+        back_color=back_color,
+        box_size=box_size,
+        border=border,
+        error_correction=error_correction,
+        pattern=pattern,
+        logo_filename=logo_filename,
+    )
+    db.session.commit()
+    flash('QR code updated')
+    return redirect(url_for('index'))
+
+
 @app.route('/<slug>')
 def redirect_link(slug: str):
     """Redirect to the original URL and record visit information."""

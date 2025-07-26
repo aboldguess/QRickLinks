@@ -52,7 +52,13 @@
 <h2>Your links</h2>
 <table class="table table-striped">
   <thead>
-    <tr><th>Slug</th><th>Original URL</th><th>QR Code</th><th>Visits</th><th>Download</th></tr>
+    <tr>
+      <th>Slug</th>
+      <th>Original URL</th>
+      <th>QR Code</th>
+      <th>Visits</th>
+      <th>Actions</th>
+    </tr>
   </thead>
   <tbody>
     {% for link in links %}
@@ -61,7 +67,56 @@
       <td><a href="{{ link.original_url }}" target="_blank">{{ link.original_url }}</a></td>
       <td><img src="{{ url_for('serve_qr', filename=link.qr_filename) }}" width="100"></td>
       <td>{{ link.visit_count }}</td>
-      <td><a href="{{ url_for('download_qr', filename=link.qr_filename) }}" class="btn btn-sm btn-secondary">Download</a></td>
+      <td>
+        <a href="{{ url_for('download_qr', filename=link.qr_filename) }}" class="btn btn-sm btn-secondary mb-1">Download</a>
+        <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#c{{ link.id }}" aria-expanded="false" aria-controls="c{{ link.id }}">Customize</button>
+      </td>
+    </tr>
+    <tr class="collapse" id="c{{ link.id }}">
+      <td colspan="5">
+        <form method="post" action="{{ url_for('customize_link', link_id=link.id) }}" enctype="multipart/form-data" class="row g-2">
+          <div class="col-md-2">
+            <label for="fill_color{{ link.id }}" class="form-label">Foreground</label>
+            <input type="color" class="form-control form-control-color" id="fill_color{{ link.id }}" name="fill_color" value="#000000">
+          </div>
+          <div class="col-md-2">
+            <label for="back_color{{ link.id }}" class="form-label">Background</label>
+            <input type="color" class="form-control form-control-color" id="back_color{{ link.id }}" name="back_color" value="#ffffff">
+          </div>
+          <div class="col-md-1">
+            <label for="box_size{{ link.id }}" class="form-label">Box</label>
+            <input type="number" class="form-control" id="box_size{{ link.id }}" name="box_size" value="10" min="1" max="20">
+          </div>
+          <div class="col-md-1">
+            <label for="border{{ link.id }}" class="form-label">Border</label>
+            <input type="number" class="form-control" id="border{{ link.id }}" name="border" value="4" min="0" max="10">
+          </div>
+          <div class="col-md-2">
+            <label for="pattern{{ link.id }}" class="form-label">Pattern</label>
+            <select id="pattern{{ link.id }}" name="pattern" class="form-select">
+              <option value="square" selected>Square</option>
+              <option value="rounded">Rounded</option>
+              <option value="circle">Circle</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label for="error_correction{{ link.id }}" class="form-label">Redundancy</label>
+            <select id="error_correction{{ link.id }}" name="error_correction" class="form-select">
+              <option value="L">L</option>
+              <option value="M" selected>M</option>
+              <option value="Q">Q</option>
+              <option value="H">H</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label for="logo{{ link.id }}" class="form-label">Logo</label>
+            <input type="file" class="form-control" id="logo{{ link.id }}" name="logo" accept="image/*">
+          </div>
+          <div class="col-12">
+            <button type="submit" class="btn btn-primary btn-sm">Update QR</button>
+          </div>
+        </form>
+      </td>
     </tr>
     {% endfor %}
   </tbody>
