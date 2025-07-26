@@ -14,6 +14,7 @@ QRickLinks is a simple URL shortening service that generates short, memorable sl
 - Dashboard listing a user's links and visit counts
 - Basic visit tracking (IP address and referrer)
 - Admin dashboard with site statistics and settings
+- Subscription paywall for advanced QR code features
 
 ## Setup
 
@@ -58,6 +59,10 @@ An administrator account is created automatically with the following credentials
 * **Password:** `Admin12345`
 
 Log in at `http://localhost:5000/admin/login` to view site statistics and manage settings such as the base URL used for generated links.
+
+### Monetisation
+
+Advanced features such as custom colours, advanced styling, logo embedding and analytics views are limited for free users. The monthly quotas for each feature can be configured from the admin settings page. Users marked as premium are not restricted by these limits.
 
 ## Notes
 
