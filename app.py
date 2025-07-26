@@ -3,6 +3,7 @@ import random
 from datetime import datetime
 
 from flask import Flask, render_template, redirect, url_for, request, flash, send_from_directory, abort
+from urllib.parse import urlparse
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user, UserMixin
 from sqlalchemy import func, text  # text() allows execution of raw SQL strings
@@ -101,6 +102,15 @@ def generate_words() -> str:
     second_adj = random.choice(ADJECTIVES)
     noun = random.choice(NOUNS)
     return f"{first_adj}.{second_adj}.{noun}"
+
+
+def normalize_url(url: str) -> str:
+    """Ensure the provided URL includes a scheme."""
+    # When users omit the protocol (e.g. 'google.com'), urlparse
+    # leaves the scheme empty. Prepend 'https://' so redirects work.
+    if not urlparse(url).scheme:
+        return f"https://{url}"
+    return url
 
 
 def create_qr_code(
@@ -292,7 +302,8 @@ def admin_settings():
 @login_required
 def create_link():
     """Create a shortened link and corresponding QR code."""
-    original_url = request.form['original_url']
+    # Normalise the submitted URL so missing schemes default to https://
+    original_url = normalize_url(request.form['original_url'])
     slug = generate_words()
 
     # Customisation options supplied by the user or using defaults
