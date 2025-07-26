@@ -146,6 +146,13 @@ def create_qr_code(
     }
     error_correction_level = ec_map.get(error_correction.upper(), qrcode.constants.ERROR_CORRECT_M)
 
+    # When embedding a logo the qrcode library requires the highest
+    # error correction level (H).  Adjust automatically so users do not
+    # encounter cryptic errors when uploading a logo with a lower level
+    # selected in the form.
+    if logo_filename and error_correction_level != qrcode.constants.ERROR_CORRECT_H:
+        error_correction_level = qrcode.constants.ERROR_CORRECT_H
+
     # Select the module drawer style used to render QR modules
     drawers = {
         "square": SquareModuleDrawer(),
