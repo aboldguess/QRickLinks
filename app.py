@@ -5,7 +5,7 @@ from datetime import datetime
 from flask import Flask, render_template, redirect, url_for, request, flash, send_from_directory, abort
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user, UserMixin
-from sqlalchemy import func
+from sqlalchemy import func, text  # text() allows execution of raw SQL strings
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -388,9 +388,11 @@ if __name__ == '__main__':
         # lack newer columns. The following check ensures the "is_admin" column
         # exists on the user table and adds it on the fly if missing. This
         # avoids manual migrations for small schema changes.
-        columns = [row[1] for row in db.session.execute("PRAGMA table_info(user)").fetchall()]
+        # Query the SQLite schema to check for the presence of the is_admin column
+        columns = [row[1] for row in db.session.execute(text("PRAGMA table_info(user)")).fetchall()]
         if 'is_admin' not in columns:
-            db.session.execute("ALTER TABLE user ADD COLUMN is_admin BOOLEAN DEFAULT 0")
+            # Add the is_admin column if missing to support admin accounts
+            db.session.execute(text("ALTER TABLE user ADD COLUMN is_admin BOOLEAN DEFAULT 0"))
             db.session.commit()
 
         # Ensure a settings row is present
