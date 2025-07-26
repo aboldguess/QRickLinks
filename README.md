@@ -23,6 +23,17 @@ QRickLinks is a simple URL shortening service that generates short, memorable sl
    ```
 3. Visit `http://localhost:5000` in your browser.
 
+### Raspberry Pi Hosting
+
+Use the provided `run_rpi.py` script to host the application on a Raspberry Pi.
+It binds to all network interfaces and accepts an optional port argument:
+
+```bash
+python run_rpi.py 8080  # runs the server on port 8080
+```
+
+Omit the argument to use the default port `5000`.
+
 ### Admin Access
 
 An administrator account is created automatically with the following credentials:
