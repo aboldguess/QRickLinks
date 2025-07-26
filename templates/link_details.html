@@ -28,7 +28,12 @@
 <script>
   const map = L.map('map').setView([0,0], 2);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19}).addTo(map);
-  const ips = {{ visit_map.keys()|list|map(attribute=0)|tojson }};
+  {#
+    Convert map keys to a list of IPs for JSON serialisation. The map filter
+    returns a generator, so apply the list filter after mapping to materialise
+    the sequence before passing it to the tojson filter.
+  #}
+  const ips = {{ visit_map.keys()|map(attribute=0)|list|tojson }};
   ips.forEach(ip => {
     fetch('http://ip-api.com/json/' + ip)
       .then(r => r.json())
