@@ -171,12 +171,13 @@ def create_qr_code(
     qr.add_data(url)
     qr.make(fit=True)
 
-    # Convert colour strings to RGBA tuples that PIL understands. This prevents
-    # type errors when qrcode draws the image.
+    # Convert colour strings to RGB tuples that PIL understands. Using RGB
+    # avoids an alpha channel, which would otherwise make the QR code drawing
+    # treat the background as transparent and produce a solid square.
     if isinstance(fill_color, str):
-        fill_color = ImageColor.getcolor(fill_color, "RGBA")
+        fill_color = ImageColor.getcolor(fill_color, "RGB")
     if isinstance(back_color, str):
-        back_color = ImageColor.getcolor(back_color, "RGBA")
+        back_color = ImageColor.getcolor(back_color, "RGB")
 
     # Use a color mask so foreground/background colours can be customised
     color_mask = SolidFillColorMask(back_color=back_color, front_color=fill_color)
