@@ -13,7 +13,8 @@ If no port is provided, the server defaults to port 5000.
 import sys
 
 # Import the Flask application instance from app.py
-from app import app
+# Import the Flask app and database initialization helper
+from app import app, initialize_database
 
 
 def main() -> None:
@@ -29,6 +30,8 @@ def main() -> None:
             print(f"Invalid port '{sys.argv[1]}'. Using default {default_port}.")
             port = default_port
 
+    # Prepare the database before starting
+    initialize_database()
     # Run the Flask app on all network interfaces so it's accessible on the LAN
     app.run(host="0.0.0.0", port=port)
 
