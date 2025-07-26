@@ -178,10 +178,11 @@ def create_qr_code(
     # Select the module drawer style used to render QR modules
     drawers = {
         "square": SquareModuleDrawer(),
-        # Use a smaller radius to make rounded modules visually distinct from
-        # squares.  A ratio of 0.25 produces gentle curves that stand out even
-        # when neighbouring modules touch.
-        "rounded": RoundedModuleDrawer(radius_ratio=0.25),
+        # A radius ratio of 1 draws each module as a circle, producing a
+        # noticeably different look from the default square modules.
+        # RoundedModuleDrawer considers neighbouring modules when applying the
+        # curvature so connected modules blend together cleanly.
+        "rounded": RoundedModuleDrawer(radius_ratio=1),
         "circle": CircleModuleDrawer(),
     }
     # Fallback to a square pattern if an unknown option is provided
