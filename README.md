@@ -36,6 +36,18 @@ python run_rpi.py 8080  # runs the server on port 8080
 
 Omit the argument to use the default port `5000`.
 
+### Windows Quick Start
+
+On Windows you can run `run_windows.py` which installs dependencies, prepares
+the database and starts the server. An optional port argument overrides the
+default:
+
+```bash
+python run_windows.py 5001  # starts the app on port 5001
+```
+
+Omit the argument to use port `5000`.
+
 ### Admin Access
 
 An administrator account is created automatically with the following credentials:

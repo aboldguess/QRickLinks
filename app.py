@@ -457,10 +457,10 @@ def redirect_link(slug: str):
     return redirect(link.original_url)
 
 
-if __name__ == '__main__':
-    # Always run database related setup inside the application context
+def initialize_database() -> None:
+    """Create database tables and default records."""
     with app.app_context():
-        # Create tables if they do not yet exist
+        # Ensure tables exist before the server starts
         db.create_all()
 
         # ------------------------------------------------------------------
@@ -470,10 +470,8 @@ if __name__ == '__main__':
         # lack newer columns. The following check ensures the "is_admin" column
         # exists on the user table and adds it on the fly if missing. This
         # avoids manual migrations for small schema changes.
-        # Query the SQLite schema to check for the presence of the is_admin column
         columns = [row[1] for row in db.session.execute(text("PRAGMA table_info(user)")).fetchall()]
         if 'is_admin' not in columns:
-            # Add the is_admin column if missing to support admin accounts
             db.session.execute(text("ALTER TABLE user ADD COLUMN is_admin BOOLEAN DEFAULT 0"))
             db.session.commit()
 
@@ -487,5 +485,9 @@ if __name__ == '__main__':
             db.session.add(admin)
             db.session.commit()
 
+
+if __name__ == '__main__':
+    # Prepare the database and default records before starting
+    initialize_database()
     # Run the Flask development server
     app.run(debug=True)
