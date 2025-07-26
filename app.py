@@ -376,24 +376,32 @@ def redirect_link(slug: str):
 
 
 if __name__ == '__main__':
-    # Create database tables and initial data if they don't exist
-    if not os.path.exists('qricklinks.db'):
-        with app.app_context():
-            db.create_all()
-            # Ensure default settings row exists
-            get_settings()
-            # Create the admin user with predefined credentials
+    # Always run database related setup inside the application context
+    with app.app_context():
+        # Create tables if they do not yet exist
+        db.create_all()
+
+        # ------------------------------------------------------------------
+        # Schema migration helper
+        # ------------------------------------------------------------------
+        # When the application is updated, the existing SQLite database may
+        # lack newer columns. The following check ensures the "is_admin" column
+        # exists on the user table and adds it on the fly if missing. This
+        # avoids manual migrations for small schema changes.
+        columns = [row[1] for row in db.session.execute("PRAGMA table_info(user)").fetchall()]
+        if 'is_admin' not in columns:
+            db.session.execute("ALTER TABLE user ADD COLUMN is_admin BOOLEAN DEFAULT 0")
+            db.session.commit()
+
+        # Ensure a settings row is present
+        get_settings()
+
+        # Create the administrator account if it doesn't already exist
+        if not User.query.filter_by(username='philadmin', is_admin=True).first():
             admin = User(username='philadmin', is_admin=True)
             admin.set_password('Admin12345')
             db.session.add(admin)
             db.session.commit()
-    else:
-        with app.app_context():
-            # Ensure admin user exists even if database was already created
-            if not User.query.filter_by(username='philadmin', is_admin=True).first():
-                admin = User(username='philadmin', is_admin=True)
-                admin.set_password('Admin12345')
-                db.session.add(admin)
-                db.session.commit()
+
     # Run the Flask development server
     app.run(debug=True)
