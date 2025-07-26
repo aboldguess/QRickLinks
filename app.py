@@ -1,5 +1,6 @@
 import os
 import random
+import argparse
 from datetime import datetime
 
 from flask import Flask, render_template, redirect, url_for, request, flash, send_from_directory
@@ -197,10 +198,23 @@ def redirect_link(slug: str):
 
 
 if __name__ == '__main__':
+    """Entry point when running the script directly."""
+
+    # Parse optional command line argument for the port number
+    parser = argparse.ArgumentParser(description="Run the QRickLinks server")
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=5000,
+        help="Port to listen on (default: 5000)",
+    )
+    args = parser.parse_args()
+
     # Create database tables if they don't exist
     if not os.path.exists('qricklinks.db'):
         # SQLAlchemy operations need an application context
         with app.app_context():
             db.create_all()
-    # Run the Flask development server
-    app.run(debug=True)
+
+    # Run the Flask development server and bind to all network interfaces
+    app.run(debug=True, host='0.0.0.0', port=args.port)

@@ -16,11 +16,12 @@ QRickLinks is a simple URL shortening service that generates short, memorable sl
    ```bash
    pip install -r requirements.txt
    ```
-2. Run the application:
+2. Run the application (optionally specify a port):
    ```bash
-   python app.py
+   ./run_on_pi.sh       # defaults to port 5000
+   ./run_on_pi.sh 8080 # run on port 8080
    ```
-3. Visit `http://localhost:5000` in your browser.
+3. Visit `http://<your-pi-ip>:<port>` in your browser.
 
 ## Notes
 
