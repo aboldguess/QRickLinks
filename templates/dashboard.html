@@ -54,6 +54,7 @@
   <thead>
     <tr>
       <th>Slug</th>
+      <th>Code</th>
       <th>Original URL</th>
       <th>QR Code</th>
       <th>Visits</th>
@@ -64,6 +65,7 @@
     {% for link in links %}
     <tr>
       <td><a href="{{ link.short_url }}" target="_blank">{{ link.slug }}</a></td>
+      <td><a href="{{ link.code_url }}" target="_blank">{{ link.short_code }}</a></td>
       <td><a href="{{ link.original_url }}" target="_blank">{{ link.original_url }}</a></td>
       <td><img src="{{ url_for('serve_qr', filename=link.qr_filename) }}" width="100"></td>
       <td>{{ link.visit_count }}</td>
@@ -73,7 +75,7 @@
       </td>
     </tr>
     <tr class="collapse" id="c{{ link.id }}">
-      <td colspan="5">
+      <td colspan="6">
         <form method="post" action="{{ url_for('customize_link', link_id=link.id) }}" enctype="multipart/form-data" class="row g-2">
           <div class="col-md-2">
             <label for="fill_color{{ link.id }}" class="form-label">Foreground</label>
