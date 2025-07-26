@@ -38,6 +38,8 @@
       </div>
       <div class="text-center mb-2">
         <img src="{{ url_for('serve_qr', filename=link.qr_filename) }}" width="100" class="mb-1">
+        <!-- Show a small screenshot of the original page -->
+        <img src="{{ link.thumbnail_url }}" width="100" class="mb-1" alt="Preview">
         <div>{{ link.visit_count }} visits</div>
         <div class="link-actions mt-1">
           <a href="{{ url_for('download_qr', filename=link.qr_filename) }}" class="btn btn-sm btn-secondary mb-1">
