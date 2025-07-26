@@ -1,8 +1,44 @@
 {% extends 'base.html' %}
 {% block content %}
 <h2>Pricing</h2>
-<p>The Pro plan unlocks unlimited customisation and analytics. During early access the subscription is free.</p>
+<table class="table table-bordered text-center">
+  <thead>
+    <tr>
+      <th>Plan</th>
+      {% for tier in tiers %}
+      <th>
+        {{ tier.name }}
+        {% if tier.highlight_text %}<div class="text-muted">{{ tier.highlight_text }}</div>{% endif %}
+      </th>
+      {% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>Regular Price</th>
+      {% for tier in tiers %}
+      <td>${{ '%.2f'|format(tier.regular_price) }}</td>
+      {% endfor %}
+    </tr>
+    <tr>
+      <th>Discounted Price</th>
+      {% for tier in tiers %}
+      <td>${{ '%.2f'|format(tier.discounted_price) }}</td>
+      {% endfor %}
+    </tr>
+    {% for feat in features %}
+    <tr>
+      <th>{{ feat.replace('_',' ').title() }}</th>
+      {% for tier in tiers %}
+      <td>
+        {% if getattr(tier, feat + '_unlimited') %}Unlimited{% else %}{{ getattr(tier, feat + '_limit') }}{% endif %}
+      </td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
 {% if current_user.is_authenticated and not current_user.is_premium %}
-<a class="btn btn-primary" href="{{ url_for('subscribe') }}">Subscribe for Free</a>
+<a class="btn btn-primary" href="{{ url_for('subscribe') }}">Subscribe</a>
 {% endif %}
 {% endblock %}

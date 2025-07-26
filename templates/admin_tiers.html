@@ -1,0 +1,72 @@
+{% extends 'admin_base.html' %}
+{% block content %}
+<h2>Pricing Tiers</h2>
+<form method="post">
+  <table class="table table-bordered text-center align-middle">
+    <thead>
+      <tr>
+        <th>Feature</th>
+        {% for tier in tiers %}
+        <th>
+          <input type="text" class="form-control mb-2" name="{{ tier.id }}_name" value="{{ tier.name }}">
+        </th>
+        {% endfor %}
+        <th>
+          <input type="text" class="form-control" name="new_tier_name" placeholder="New tier">
+          <button class="btn btn-primary btn-sm mt-2" type="submit">Add</button>
+        </th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <th>Regular Price</th>
+        {% for tier in tiers %}
+        <td><input type="number" step="0.01" class="form-control" name="{{ tier.id }}_regular_price" value="{{ tier.regular_price }}"></td>
+        {% endfor %}
+        <td></td>
+      </tr>
+      <tr>
+        <th>Discounted Price</th>
+        {% for tier in tiers %}
+        <td><input type="number" step="0.01" class="form-control" name="{{ tier.id }}_discounted_price" value="{{ tier.discounted_price }}"></td>
+        {% endfor %}
+        <td></td>
+      </tr>
+      <tr>
+        <th>Highlight</th>
+        {% for tier in tiers %}
+        <td><input type="text" class="form-control" name="{{ tier.id }}_highlight_text" value="{{ tier.highlight_text }}"></td>
+        {% endfor %}
+        <td></td>
+      </tr>
+      {% for feat in features %}
+      <tr>
+        <th>{{ feat.replace('_',' ').title() }}</th>
+        {% for tier in tiers %}
+        <td>
+          <div class="input-group">
+            <input type="number" class="form-control" name="{{ tier.id }}_{{ feat }}_limit" value="{{ getattr(tier, feat + '_limit') }}">
+            <div class="input-group-text">
+              <input type="checkbox" class="form-check-input mt-0" name="{{ tier.id }}_{{ feat }}_unlimited" {% if getattr(tier, feat + '_unlimited') %}checked{% endif %}>
+            </div>
+          </div>
+        </td>
+        {% endfor %}
+        <td></td>
+      </tr>
+      {% endfor %}
+      <tr>
+        <th>Actions</th>
+        {% for tier in tiers %}
+        <td>
+          <a href="{{ url_for('delete_tier', tier_id=tier.id) }}" class="btn btn-danger btn-sm">Delete</a>
+          <a href="{{ url_for('archive_tier', tier_id=tier.id) }}" class="btn btn-secondary btn-sm">{{ 'Unarchive' if tier.archived else 'Archive' }}</a>
+        </td>
+        {% endfor %}
+        <td></td>
+      </tr>
+    </tbody>
+  </table>
+  <button type="submit" class="btn btn-primary">Save Changes</button>
+</form>
+{% endblock %}
