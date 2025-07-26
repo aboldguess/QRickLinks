@@ -9,6 +9,7 @@ QRickLinks is a simple URL shortening service that generates short, memorable sl
 - Automatic QR code creation for each short URL
 - Dashboard listing a user's links and visit counts
 - Basic visit tracking (IP address and referrer)
+- Admin dashboard with site statistics and settings
 
 ## Setup
 
@@ -21,6 +22,15 @@ QRickLinks is a simple URL shortening service that generates short, memorable sl
    python app.py
    ```
 3. Visit `http://localhost:5000` in your browser.
+
+### Admin Access
+
+An administrator account is created automatically with the following credentials:
+
+* **Username:** `philadmin`
+* **Password:** `Admin12345`
+
+Log in at `http://localhost:5000/admin/login` to view site statistics and manage settings such as the base URL used for generated links.
 
 ## Notes
 

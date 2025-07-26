@@ -2,9 +2,11 @@ import os
 import random
 from datetime import datetime
 
-from flask import Flask, render_template, redirect, url_for, request, flash, send_from_directory
+from flask import Flask, render_template, redirect, url_for, request, flash, send_from_directory, abort
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user, UserMixin
+from sqlalchemy import func
+from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
 import qrcode
 
@@ -27,6 +29,8 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(128), nullable=False)
     links = db.relationship('Link', backref='owner', lazy=True)
+    # Flag to determine if the user has administrative privileges
+    is_admin = db.Column(db.Boolean, default=False)
 
     def set_password(self, password: str) -> None:
         """Hash and store the user's password."""
@@ -56,6 +60,12 @@ class Visit(db.Model):
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     ip = db.Column(db.String(100))
     referrer = db.Column(db.String(2048))
+
+
+class Setting(db.Model):
+    """Stores global application settings."""
+    id = db.Column(db.Integer, primary_key=True)
+    base_url = db.Column(db.String(512), default='http://localhost:5000')
 
 
 @login_manager.user_loader
@@ -95,6 +105,26 @@ def create_qr_code(url: str, slug: str) -> str:
     filepath = os.path.join('static', 'qr', filename)
     img.save(filepath)
     return filename
+
+
+def get_settings() -> Setting:
+    """Retrieve the single settings row, creating it if missing."""
+    settings = Setting.query.first()
+    if not settings:
+        settings = Setting()
+        db.session.add(settings)
+        db.session.commit()
+    return settings
+
+
+def admin_required(f):
+    """Decorator to restrict routes to admin users only."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated or not current_user.is_admin:
+            return redirect(url_for('admin_login'))
+        return f(*args, **kwargs)
+    return decorated_function
 
 
 # ----------------------------
@@ -148,6 +178,58 @@ def logout():
     return redirect(url_for('login'))
 
 
+# ----------------------------
+# Admin Routes
+# ----------------------------
+
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    """Admin login page with fixed credentials."""
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        user = User.query.filter_by(username=username, is_admin=True).first()
+        if user and user.check_password(password):
+            login_user(user)
+            return redirect(url_for('admin_dashboard'))
+        flash('Invalid admin credentials')
+    return render_template('admin_login.html')
+
+
+@app.route('/admin/logout')
+@admin_required
+def admin_logout():
+    """Log out the admin user."""
+    logout_user()
+    return redirect(url_for('admin_login'))
+
+
+@app.route('/admin')
+@admin_required
+def admin_dashboard():
+    """Display site statistics for the admin."""
+    user_count = User.query.filter_by(is_admin=False).count()
+    link_count = Link.query.count()
+    total_clicks = db.session.query(func.sum(Link.visit_count)).scalar() or 0
+    settings = get_settings()
+    return render_template('admin_dashboard.html', user_count=user_count,
+                           link_count=link_count, total_clicks=total_clicks,
+                           settings=settings)
+
+
+@app.route('/admin/settings', methods=['GET', 'POST'])
+@admin_required
+def admin_settings():
+    """Allow the admin to update global site settings."""
+    settings = get_settings()
+    if request.method == 'POST':
+        settings.base_url = request.form['base_url']
+        db.session.commit()
+        flash('Settings updated')
+        return redirect(url_for('admin_dashboard'))
+    return render_template('admin_settings.html', settings=settings)
+
+
 @app.route('/create', methods=['POST'])
 @login_required
 def create_link():
@@ -159,7 +241,9 @@ def create_link():
     while Link.query.filter_by(slug=slug).first() is not None:
         slug = generate_words()
 
-    short_url = url_for('redirect_link', slug=slug, _external=True)
+    # Build the short URL using the configured base URL
+    base_url = get_settings().base_url.rstrip('/')
+    short_url = f"{base_url}/{slug}"
     qr_filename = create_qr_code(short_url, slug)
 
     link = Link(
@@ -197,10 +281,24 @@ def redirect_link(slug: str):
 
 
 if __name__ == '__main__':
-    # Create database tables if they don't exist
+    # Create database tables and initial data if they don't exist
     if not os.path.exists('qricklinks.db'):
-        # SQLAlchemy operations need an application context
         with app.app_context():
             db.create_all()
+            # Ensure default settings row exists
+            get_settings()
+            # Create the admin user with predefined credentials
+            admin = User(username='philadmin', is_admin=True)
+            admin.set_password('Admin12345')
+            db.session.add(admin)
+            db.session.commit()
+    else:
+        with app.app_context():
+            # Ensure admin user exists even if database was already created
+            if not User.query.filter_by(username='philadmin', is_admin=True).first():
+                admin = User(username='philadmin', is_admin=True)
+                admin.set_password('Admin12345')
+                db.session.add(admin)
+                db.session.commit()
     # Run the Flask development server
     app.run(debug=True)
