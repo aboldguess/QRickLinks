@@ -31,3 +31,10 @@ body {
   }
 }
 
+
+/* Highlight long URL input with a complementary colour */
+#original_url {
+  background-color: #fff8e1; /* soft yellow improves visibility */
+  border-color: #ffc107;    /* match Bootstrap warning hue */
+}
+
