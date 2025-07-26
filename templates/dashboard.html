@@ -4,7 +4,13 @@
 <form method="post" action="{{ url_for('create_link') }}" enctype="multipart/form-data">
   <div class="mb-3">
     <label for="original_url" class="form-label">Long URL</label>
-    <input type="url" class="form-control" id="original_url" name="original_url" required>
+    <!--
+      Use a plain text field rather than HTML5's URL input so users can
+      enter domains without a scheme (e.g. "google.com") without the
+      browser displaying a validation error. The server will add the
+      "https://" prefix if needed.
+    -->
+    <input type="text" class="form-control" id="original_url" name="original_url" required>
   </div>
   <div class="mb-3">
     <label for="fill_color" class="form-label">Foreground Color</label>

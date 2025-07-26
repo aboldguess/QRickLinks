@@ -130,8 +130,9 @@ def generate_short_code(length: int = 6) -> str:
 
 def normalize_url(url: str) -> str:
     """Ensure the provided URL includes a scheme."""
-    # When users omit the protocol (e.g. 'google.com'), urlparse
-    # leaves the scheme empty. Prepend 'https://' so redirects work.
+    # urlparse will interpret "google.com" as a path with an empty scheme.
+    # To keep the client-side form flexible (it now accepts plain text),
+    # prepend "https://" when the scheme is missing so redirects work.
     if not urlparse(url).scheme:
         return f"https://{url}"
     return url
