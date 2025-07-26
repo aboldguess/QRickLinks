@@ -7,7 +7,8 @@ QRickLinks is a simple URL shortening service that generates short, memorable sl
 - User registration and authentication
 - Short URL generation with random word combinations
 - Base62 short codes generated alongside word slugs
-- Automatic QR code creation for each short URL
+- Automatic QR code creation for each short URL (the QR code embeds the
+  compact base62 link)
 - Customisable QR codes (colours, size, pattern, redundancy and logo)
 - URLs missing a scheme are automatically prefixed with `https://`
 - Dashboard listing a user's links and visit counts

@@ -374,9 +374,10 @@ def create_link():
     while Link.query.filter_by(short_code=short_code).first() is not None:
         short_code = generate_short_code()
 
-    # Build the short URL using the configured base URL
+    # Build the URL embedded in the QR code using the generated short code
+    # rather than the human readable slug to keep the QR target minimal.
     base_url = get_settings().base_url.rstrip('/')
-    short_url = f"{base_url}/{slug}"
+    short_url = f"{base_url}/{short_code}"
 
     # Save uploaded logo file if present
     if logo_file and logo_file.filename:
@@ -456,9 +457,10 @@ def customize_link(link_id: int):
         logo_path = os.path.join("static", "logos", logo_filename)
         logo_file.save(logo_path)
 
-    # Short URL is built from current settings and the link's slug
+    # Reconstruct the QR target URL using the existing short code so any
+    # updated image continues to point to the minimal short link.
     base_url = get_settings().base_url.rstrip('/')
-    short_url = f"{base_url}/{link.slug}"
+    short_url = f"{base_url}/{link.short_code}"
 
     # Regenerate the QR code image and update the filename field
     link.qr_filename = create_qr_code(
