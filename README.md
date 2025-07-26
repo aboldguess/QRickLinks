@@ -1,12 +1,13 @@
 # QRickLinks
 
-QRickLinks is a simple URL shortening service that generates short, memorable slugs in the form `adjective.adjective.noun` and creates corresponding QR codes. Users can register, log in, create short links, and view statistics about link visits.
+QRickLinks is a simple URL shortening service that generates short, memorable slugs in the form `adjective.adjective.noun` and creates corresponding QR codes. Users can register, log in, create short links, and view statistics about link visits. The QR code generator supports extensive customisation such as colours, size, pattern style, error correction level and even embedding a central logo.
 
 ## Features
 
 - User registration and authentication
 - Short URL generation with random word combinations
 - Automatic QR code creation for each short URL
+- Customisable QR codes (colours, size, pattern, redundancy and logo)
 - Dashboard listing a user's links and visit counts
 - Basic visit tracking (IP address and referrer)
 - Admin dashboard with site statistics and settings
@@ -46,3 +47,4 @@ Log in at `http://localhost:5000/admin/login` to view site statistics and manage
 ## Notes
 
 This project uses SQLite for simplicity and stores generated QR codes in `static/qr/`.
+When creating a new link you can tailor the QR code's appearance by choosing colours, module size, border width, pattern style, error correction level and an optional logo image.
