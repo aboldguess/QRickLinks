@@ -1,3 +1,20 @@
+/*
+  Additional styles used across the application.  The majority of the
+  look-and-feel comes from the Bootswatch theme, but these rules add
+  simple modern touches such as a gradient background and card shadows.
+*/
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  min-height: 100vh;
+}
+
+.link-card {
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
+  border: none;
+}
+
 /* Responsive layout tweaks for QRickLinks */
 
 /* Hide icon text on large screens */
