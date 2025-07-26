@@ -1,11 +1,12 @@
 # QRickLinks
 
-QRickLinks is a simple URL shortening service that generates short, memorable slugs in the form `adjective.adjective.noun` and creates corresponding QR codes. Users can register, log in, create short links, and view statistics about link visits. The QR code generator supports extensive customisation such as colours, size, pattern style, error correction level and even embedding a central logo.
+QRickLinks is a simple URL shortening service that generates short, memorable slugs in the form `adjective.adjective.noun` as well as a compact base&nbsp;62 code. Each link therefore has two ways to access it and a corresponding QR code. Users can register, log in, create short links, and view statistics about link visits. The QR code generator supports extensive customisation such as colours, size, pattern style, error correction level and even embedding a central logo.
 
 ## Features
 
 - User registration and authentication
 - Short URL generation with random word combinations
+- Base62 short codes generated alongside word slugs
 - Automatic QR code creation for each short URL
 - Customisable QR codes (colours, size, pattern, redundancy and logo)
 - URLs missing a scheme are automatically prefixed with `https://`

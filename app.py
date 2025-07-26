@@ -55,6 +55,8 @@ class Link(db.Model):
     """Represents a shortened link with tracking information."""
     id = db.Column(db.Integer, primary_key=True)
     slug = db.Column(db.String(64), unique=True, nullable=False)
+    # Base62 short code used as an alternative to the human readable slug
+    short_code = db.Column(db.String(10), unique=True, nullable=False)
     original_url = db.Column(db.String(2048), nullable=False)
     qr_filename = db.Column(db.String(128), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -70,6 +72,12 @@ class Link(db.Model):
         base_url = get_settings().base_url.rstrip('/')
         # Combine base URL and slug to form the full short URL
         return f"{base_url}/{self.slug}"
+
+    @property
+    def code_url(self) -> str:
+        """Return the short URL using the base62 code."""
+        base_url = get_settings().base_url.rstrip('/')
+        return f"{base_url}/{self.short_code}"
 
 
 class Visit(db.Model):
@@ -112,6 +120,12 @@ def generate_words() -> str:
     second_adj = random.choice(ADJECTIVES)
     noun = random.choice(NOUNS)
     return f"{first_adj}.{second_adj}.{noun}"
+
+
+def generate_short_code(length: int = 6) -> str:
+    """Return a random base62 string of the given length."""
+    alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+    return "".join(random.choice(alphabet) for _ in range(length))
 
 
 def normalize_url(url: str) -> str:
@@ -331,6 +345,7 @@ def create_link():
     # Normalise the submitted URL so missing schemes default to https://
     original_url = normalize_url(request.form['original_url'])
     slug = generate_words()
+    short_code = generate_short_code()
 
     # Customisation options supplied by the user or using defaults
     fill_color = request.form.get("fill_color", "#000000")
@@ -342,9 +357,11 @@ def create_link():
     logo_file = request.files.get("logo")
     logo_filename = None
 
-    # Ensure slug is unique; regenerate if collision occurs
+    # Ensure slugs and codes are unique; regenerate if a collision occurs
     while Link.query.filter_by(slug=slug).first() is not None:
         slug = generate_words()
+    while Link.query.filter_by(short_code=short_code).first() is not None:
+        short_code = generate_short_code()
 
     # Build the short URL using the configured base URL
     base_url = get_settings().base_url.rstrip('/')
@@ -371,6 +388,7 @@ def create_link():
 
     link = Link(
         slug=slug,
+        short_code=short_code,
         original_url=original_url,
         qr_filename=qr_filename,
         owner=current_user
@@ -444,7 +462,10 @@ def customize_link(link_id: int):
 @app.route('/<slug>')
 def redirect_link(slug: str):
     """Redirect to the original URL and record visit information."""
-    link = Link.query.filter_by(slug=slug).first_or_404()
+    # Accept either the human readable slug or the base62 short code
+    link = Link.query.filter(
+        (Link.slug == slug) | (Link.short_code == slug)
+    ).first_or_404()
     link.visit_count += 1
 
     visit = Visit(
@@ -473,6 +494,19 @@ def initialize_database() -> None:
         columns = [row[1] for row in db.session.execute(text("PRAGMA table_info(user)")).fetchall()]
         if 'is_admin' not in columns:
             db.session.execute(text("ALTER TABLE user ADD COLUMN is_admin BOOLEAN DEFAULT 0"))
+            db.session.commit()
+
+        # Add the short_code column to the link table if it is missing
+        link_columns = [row[1] for row in db.session.execute(text("PRAGMA table_info(link)")).fetchall()]
+        if 'short_code' not in link_columns:
+            db.session.execute(text("ALTER TABLE link ADD COLUMN short_code VARCHAR(10) UNIQUE"))
+            db.session.commit()
+            # Populate existing rows with unique short codes
+            for link in Link.query.all():
+                code = generate_short_code()
+                while Link.query.filter_by(short_code=code).first() is not None:
+                    code = generate_short_code()
+                link.short_code = code
             db.session.commit()
 
         # Ensure a settings row is present
