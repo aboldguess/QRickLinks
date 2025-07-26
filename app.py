@@ -61,6 +61,15 @@ class Link(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     visits = db.relationship('Visit', backref='link', lazy=True)
 
+    @property
+    def short_url(self) -> str:
+        """Return the public short URL for this link."""
+        # Retrieve the base URL from the settings table and strip any trailing
+        # slash so concatenation is predictable.
+        base_url = get_settings().base_url.rstrip('/')
+        # Combine base URL and slug to form the full short URL
+        return f"{base_url}/{self.slug}"
+
 
 class Visit(db.Model):
     """Stores individual visit records for links."""
@@ -203,6 +212,7 @@ def admin_required(f):
 def index():
     """Show dashboard with user's links."""
     links = Link.query.filter_by(owner=current_user).all()
+    # No additional parameters required; the template can use link.short_url
     return render_template('dashboard.html', links=links)
 
 
