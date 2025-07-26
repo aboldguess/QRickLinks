@@ -524,14 +524,26 @@ def initialize_database() -> None:
         # Add the short_code column to the link table if it is missing
         link_columns = [row[1] for row in db.session.execute(text("PRAGMA table_info(link)")).fetchall()]
         if 'short_code' not in link_columns:
-            db.session.execute(text("ALTER TABLE link ADD COLUMN short_code VARCHAR(10) UNIQUE"))
+            # SQLite does not allow adding a UNIQUE column directly, so add the
+            # column first and create a unique index afterwards.
+            db.session.execute(text("ALTER TABLE link ADD COLUMN short_code VARCHAR(10)"))
             db.session.commit()
-            # Populate existing rows with unique short codes
+
+            # Populate the new column for existing rows with generated codes
             for link in Link.query.all():
                 code = generate_short_code()
                 while Link.query.filter_by(short_code=code).first() is not None:
                     code = generate_short_code()
                 link.short_code = code
+            db.session.commit()
+
+            # Enforce uniqueness using an index instead of a column constraint
+            db.session.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS idx_link_short_code "
+                    "ON link (short_code)"
+                )
+            )
             db.session.commit()
 
         # Add customisation columns if they are missing so existing
