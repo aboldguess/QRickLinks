@@ -13,7 +13,7 @@ from flask import (
     abort,
     send_file,
 )
-from urllib.parse import urlparse, quote_plus
+from urllib.parse import urlparse, quote
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user, UserMixin
 from sqlalchemy import func, text  # text() allows execution of raw SQL strings
@@ -109,10 +109,13 @@ class Link(db.Model):
     @property
     def thumbnail_url(self) -> str:
         """Return a screenshot URL for the destination page."""
-        # Use the thum.io service which generates thumbnails from a URL.
-        # quote_plus ensures characters like '/' and ':' are encoded so
-        # the resulting URL is valid.
-        encoded = quote_plus(self.original_url)
+        # The thum.io service takes the target URL as part of the path.
+        # Encoding the entire URL with ``quote_plus`` breaks this format
+        # by escaping characters like ``:`` and ``/``. We only escape
+        # characters that would terminate the path such as ``?`` or ``#``
+        # while leaving the scheme and slashes intact so the request
+        # uses ``https://image.thum.io/get/width/300/https://example.com``.
+        encoded = quote(self.original_url, safe=':/')
         return f"https://image.thum.io/get/width/300/{encoded}"
 
 
