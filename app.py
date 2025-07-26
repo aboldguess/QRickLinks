@@ -124,6 +124,17 @@ class Setting(db.Model):
     analytics_limit = db.Column(db.Integer, default=100)
 
 
+class Payment(db.Model):
+    """Records a subscription payment made by a user."""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relationship back to the paying user
+    user = db.relationship('User', backref='payments', lazy=True)
+
+
 @login_manager.user_loader
 def load_user(user_id: str):
     """Flask-Login user loader callback."""
@@ -425,6 +436,31 @@ def admin_settings():
         flash('Settings updated')
         return redirect(url_for('admin_dashboard'))
     return render_template('admin_settings.html', settings=settings)
+
+
+@app.route('/admin/users')
+@admin_required
+def admin_users():
+    """Display all non-admin users and their usage details."""
+    users = User.query.filter_by(is_admin=False).all()
+    user_rows = []
+    for user in users:
+        link_count = Link.query.filter_by(owner=user).count()
+        total_clicks = (
+            db.session.query(func.sum(Link.visit_count))
+            .filter_by(user_id=user.id)
+            .scalar()
+            or 0
+        )
+        user_rows.append(
+            {
+                "user": user,
+                "link_count": link_count,
+                "total_clicks": total_clicks,
+                "payments": user.payments,
+            }
+        )
+    return render_template("admin_users.html", users=user_rows)
 
 
 @app.route('/create', methods=['POST'])

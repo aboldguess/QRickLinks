@@ -19,16 +19,27 @@
     </div>
   </div>
 </nav>
-<div class="container">
-  {% with messages = get_flashed_messages() %}
-    {% if messages %}
-      <div class="alert alert-info">
-        {{ messages[0] }}
-      </div>
-    {% endif %}
-  {% endwith %}
+<div class="container-fluid">
+  <div class="row">
+    <nav class="col-md-2 col-lg-2 bg-light sidebar py-3">
+      <ul class="nav flex-column">
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_dashboard') }}">Dashboard</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_users') }}">Users</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_settings') }}">Settings</a></li>
+      </ul>
+    </nav>
+    <main class="col-md-10 ms-sm-auto col-lg-10 px-md-4">
+      {% with messages = get_flashed_messages() %}
+        {% if messages %}
+          <div class="alert alert-info">
+            {{ messages[0] }}
+          </div>
+        {% endif %}
+      {% endwith %}
 
-  {% block content %}{% endblock %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
 </div>
 </body>
 </html>
