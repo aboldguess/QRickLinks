@@ -1,0 +1,16 @@
+/* Responsive layout tweaks for QRickLinks */
+
+/* Hide icon text on large screens */
+@media (min-width: 577px) {
+  .link-actions .icon-sm {
+    display: none;
+  }
+}
+
+/* Hide descriptive text on very small screens to save space */
+@media (max-width: 576px) {
+  .link-actions .text-label {
+    display: none;
+  }
+}
+
