@@ -22,34 +22,38 @@
 
 <hr>
 <h2>Your links</h2>
-<table class="table table-striped">
-  <thead>
-    <tr>
-      <th>Slug</th>
-      <th>Code</th>
-      <th>Original URL</th>
-      <th>QR Code</th>
-      <th>Visits</th>
-      <th>Actions</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for link in links %}
-    <tr>
-      <td><a href="{{ link.short_url }}" target="_blank">{{ link.slug }}</a></td>
-      <td><a href="{{ link.code_url }}" target="_blank">{{ link.short_code }}</a></td>
-      <td><a href="{{ link.original_url }}" target="_blank">{{ link.original_url }}</a></td>
-      <td><img src="{{ url_for('serve_qr', filename=link.qr_filename) }}" width="100"></td>
-      <td>{{ link.visit_count }}</td>
-      <td>
-        <a href="{{ url_for('download_qr', filename=link.qr_filename) }}" class="btn btn-sm btn-secondary mb-1">Download</a>
-        <a href="{{ url_for('link_details', link_id=link.id) }}" class="btn btn-sm btn-info mb-1">Details</a>
-        <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#c{{ link.id }}" aria-expanded="false" aria-controls="c{{ link.id }}">Customize</button>
-      </td>
-    </tr>
-    <tr class="collapse" id="c{{ link.id }}">
-      <td colspan="6">
-        <form method="post" action="{{ url_for('customize_link', link_id=link.id) }}" enctype="multipart/form-data" class="row g-2">
+{#
+  Each link is displayed as a Bootstrap card instead of a wide table row so the
+  three URL variants stack vertically on mobile devices. The card layout also
+  keeps the customisation form collapsed underneath.
+#}
+{% for link in links %}
+<div class="card mb-3 link-card">
+  <div class="card-body">
+    <div class="d-md-flex justify-content-between align-items-start">
+      <div class="mb-2">
+        <div><a href="{{ link.short_url }}" target="_blank">{{ link.slug }}</a></div>
+        <div><a href="{{ link.code_url }}" target="_blank">{{ link.short_code }}</a></div>
+        <div><a href="{{ link.original_url }}" target="_blank">{{ link.original_url }}</a></div>
+      </div>
+      <div class="text-center mb-2">
+        <img src="{{ url_for('serve_qr', filename=link.qr_filename) }}" width="100" class="mb-1">
+        <div>{{ link.visit_count }} visits</div>
+        <div class="link-actions mt-1">
+          <a href="{{ url_for('download_qr', filename=link.qr_filename) }}" class="btn btn-sm btn-secondary mb-1">
+            <span class="icon-sm">D</span><span class="text-label">Download</span>
+          </a>
+          <a href="{{ url_for('link_details', link_id=link.id) }}" class="btn btn-sm btn-info mb-1">
+            <span class="icon-sm">i</span><span class="text-label">Details</span>
+          </a>
+          <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#c{{ link.id }}" aria-expanded="false" aria-controls="c{{ link.id }}">
+            <span class="icon-sm">C</span><span class="text-label">Customize</span>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="collapse mt-2" id="c{{ link.id }}">
+      <form method="post" action="{{ url_for('customize_link', link_id=link.id) }}" enctype="multipart/form-data" class="row g-2">
           <div class="col-md-2">
             <label for="fill_color{{ link.id }}" class="form-label">Foreground</label>
             <input type="color" class="form-control form-control-color" id="fill_color{{ link.id }}" name="fill_color" value="{{ link.fill_color }}">
@@ -90,10 +94,9 @@
           <div class="col-12">
             <button type="submit" class="btn btn-primary btn-sm">Update QR</button>
           </div>
-        </form>
-      </td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+      </form>
+    </div>
+  </div>
+</div>
+{% endfor %}
 {% endblock %}
