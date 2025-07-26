@@ -47,4 +47,4 @@ Log in at `http://localhost:5000/admin/login` to view site statistics and manage
 ## Notes
 
 This project uses SQLite for simplicity and stores generated QR codes in `static/qr/`.
-When creating a new link you can tailor the QR code's appearance by choosing colours, module size, border width, pattern style, error correction level and an optional logo image.
+After a link is created you can customise its QR code from a pull-down menu next to the entry on your dashboard. Options include colours, module size, border width, pattern style, error correction level and an optional central logo.
