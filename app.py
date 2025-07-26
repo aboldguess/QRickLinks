@@ -376,7 +376,9 @@ def create_link():
     slug = generate_words()
     short_code = generate_short_code()
 
-    # Customisation options supplied by the user or using defaults
+    # Customisation options supplied by the user or using defaults.
+    # When the simplified creation form omits these fields the defaults are
+    # applied so a valid QR code is still generated.
     fill_color = request.form.get("fill_color", "#000000")
     back_color = request.form.get("back_color", "#FFFFFF")
     box_size = int(request.form.get("box_size", 10))

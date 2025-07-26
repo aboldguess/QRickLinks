@@ -9,7 +9,7 @@ QRickLinks is a simple URL shortening service that generates short, memorable sl
 - Base62 short codes generated alongside word slugs
 - Automatic QR code creation for each short URL (the QR code embeds the
   compact base62 link)
-- Customisable QR codes (colours, size, pattern, redundancy and logo)
+- QR codes can be customised after creation from the dashboard
 - URLs missing a scheme are automatically prefixed with `https://`
 - Dashboard listing a user's links and visit counts
 - Basic visit tracking (IP address and referrer)
@@ -62,7 +62,7 @@ Log in at `http://localhost:5000/admin/login` to view site statistics and manage
 ## Notes
 
 This project uses SQLite for simplicity and stores generated QR codes in `static/qr/`.
-After a link is created you can customise its QR code from a pull-down menu next to the entry on your dashboard. Options include colours, module size, border width, pattern style, error correction level and an optional central logo.
+The creation form now only asks for the long URL so the interface stays clutter‑free. After a link is created you can customise its QR code from a pull‑down menu next to the entry on your dashboard. Options include colours, module size, border width, pattern style, error correction level and an optional central logo.
 
 The *rounded* pattern now uses a radius ratio of `1` so every module is drawn as
 a circle, providing a clear visual distinction from the default square style.
