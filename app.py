@@ -18,6 +18,7 @@ from qrcode.image.styles.moduledrawers import (
     CircleModuleDrawer,
 )
 from qrcode.image.styles.colormasks import SolidFillColorMask
+from PIL import ImageColor
 
 # Initialize Flask app and database
 app = Flask(__name__)
@@ -162,6 +163,13 @@ def create_qr_code(
     )
     qr.add_data(url)
     qr.make(fit=True)
+
+    # Convert colour strings to RGBA tuples that PIL understands. This prevents
+    # type errors when qrcode draws the image.
+    if isinstance(fill_color, str):
+        fill_color = ImageColor.getcolor(fill_color, "RGBA")
+    if isinstance(back_color, str):
+        back_color = ImageColor.getcolor(back_color, "RGBA")
 
     # Use a color mask so foreground/background colours can be customised
     color_mask = SolidFillColorMask(back_color=back_color, front_color=fill_color)
