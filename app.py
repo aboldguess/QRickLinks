@@ -423,6 +423,8 @@ def admin_required(f):
 @login_required
 def index():
     """Show dashboard with user's links."""
+    # Refresh monthly usage counters so the freebies display is accurate
+    reset_usage_if_needed(current_user)
     links = Link.query.filter_by(owner=current_user).all()
     # No additional parameters required; the template can use link.short_url
     return render_template('dashboard.html', links=links)
@@ -777,9 +779,18 @@ def link_details(link_id: int):
     link = Link.query.get_or_404(link_id)
     if link.owner != current_user:
         abort(403)
+    # Free users should not access analytics. Show a locked page instead of
+    # returning visit data when the account is not premium.
+    if not current_user.is_premium:
+        return render_template('link_details.html', link=link, premium=False)
 
     # Retrieve all visits for this link ordered newest first
-    visits = Visit.query.filter_by(link_id=link.id).order_by(Visit.timestamp.desc()).all()
+    visits = (
+        Visit.query
+        .filter_by(link_id=link.id)
+        .order_by(Visit.timestamp.desc())
+        .all()
+    )
 
     # Collate unique visitors by their IP/MAC pair so we can count them and show
     # when each visitor accessed the link
@@ -791,6 +802,7 @@ def link_details(link_id: int):
     return render_template(
         'link_details.html',
         link=link,
+        premium=True,
         total_clicks=link.visit_count,
         unique_count=len(unique_map),
         visit_map=unique_map,
