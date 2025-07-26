@@ -12,6 +12,7 @@ QRickLinks is a simple URL shortening service that generates short, memorable sl
 - QR codes can be customised after creation from the dashboard
 - URLs missing a scheme are automatically prefixed with `https://`
 - Dashboard listing a user's links and visit counts
+- Thumbnail preview of each destination page using the thum.io service
 - Basic visit tracking (IP address and referrer)
 - Admin dashboard with site statistics and settings
 - Subscription paywall for advanced QR code features

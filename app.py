@@ -3,7 +3,7 @@ import random
 from datetime import datetime
 
 from flask import Flask, render_template, redirect, url_for, request, flash, send_from_directory, abort
-from urllib.parse import urlparse
+from urllib.parse import urlparse, quote_plus
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user, UserMixin
 from sqlalchemy import func, text  # text() allows execution of raw SQL strings
@@ -92,6 +92,15 @@ class Link(db.Model):
         """Return the short URL using the base62 code."""
         base_url = get_settings().base_url.rstrip('/')
         return f"{base_url}/{self.short_code}"
+
+    @property
+    def thumbnail_url(self) -> str:
+        """Return a screenshot URL for the destination page."""
+        # Use the thum.io service which generates thumbnails from a URL.
+        # quote_plus ensures characters like '/' and ':' are encoded so
+        # the resulting URL is valid.
+        encoded = quote_plus(self.original_url)
+        return f"https://image.thum.io/get/width/300/{encoded}"
 
 
 class Visit(db.Model):
