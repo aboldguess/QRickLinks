@@ -1,0 +1,10 @@
+{% extends 'admin_base.html' %}
+{% block content %}
+<h2>Site Summary</h2>
+<ul>
+  <li>Total Users: {{ user_count }}</li>
+  <li>Total Links: {{ link_count }}</li>
+  <li>Total Clicks: {{ total_clicks }}</li>
+</ul>
+<a class="btn btn-primary" href="{{ url_for('admin_settings') }}">Edit Settings</a>
+{% endblock %}
