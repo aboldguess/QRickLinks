@@ -31,6 +31,13 @@ body {
   }
 }
 
+/* Stack action buttons vertically on dashboards */
+.link-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
 
 /* Highlight long URL input with a complementary colour */
 #original_url {

@@ -2,7 +2,17 @@ import os
 import random
 from datetime import datetime
 
-from flask import Flask, render_template, redirect, url_for, request, flash, send_from_directory, abort
+from flask import (
+    Flask,
+    render_template,
+    redirect,
+    url_for,
+    request,
+    flash,
+    send_from_directory,
+    abort,
+    send_file,
+)
 from urllib.parse import urlparse, quote_plus
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user, UserMixin
@@ -17,6 +27,9 @@ from qrcode.image.styles.moduledrawers import (
     RoundedModuleDrawer,
     CircleModuleDrawer,
 )
+from qrcode.image.svg import SvgPathImage
+from qrcode.image.styles.moduledrawers import svg as svg_drawers
+import io
 from qrcode.image.styles.colormasks import SolidFillColorMask
 from PIL import ImageColor
 
@@ -272,6 +285,50 @@ def create_qr_code(
     filepath = os.path.join("static", "qr", filename)
     img.save(filepath)
     return filename
+
+
+def generate_qr_svg(link: 'Link') -> io.BytesIO:
+    """Return an SVG QR code for the given link."""
+
+    # Recreate the short URL that the existing PNG encodes
+    base_url = get_settings().base_url.rstrip('/')
+    short_url = f"{base_url}/{link.short_code}"
+
+    # Map error correction letters to qrcode constants
+    ec_map = {
+        "L": qrcode.constants.ERROR_CORRECT_L,
+        "M": qrcode.constants.ERROR_CORRECT_M,
+        "Q": qrcode.constants.ERROR_CORRECT_Q,
+        "H": qrcode.constants.ERROR_CORRECT_H,
+    }
+    level = ec_map.get(link.error_correction.upper(), qrcode.constants.ERROR_CORRECT_M)
+
+    qr = qrcode.QRCode(
+        box_size=link.box_size,
+        border=link.border,
+        error_correction=level,
+    )
+    qr.add_data(short_url)
+    qr.make(fit=True)
+
+    # Use SVG-specific module drawers; fall back to squares if pattern unknown
+    svg_map = {
+        'square': svg_drawers.SvgPathSquareDrawer(),
+        'rounded': svg_drawers.SvgPathCircleDrawer(),
+        'circle': svg_drawers.SvgPathCircleDrawer(),
+    }
+    drawer = svg_map.get(link.pattern, svg_drawers.SvgPathSquareDrawer())
+
+    img = qr.make_image(image_factory=SvgPathImage, module_drawer=drawer)
+
+    # Apply colours so the SVG matches the customised PNG version
+    img.QR_PATH_STYLE['fill'] = link.fill_color
+    img.background = link.back_color
+
+    buffer = io.BytesIO()
+    img.save(buffer)
+    buffer.seek(0)
+    return buffer
 
 
 def get_settings() -> Setting:
@@ -556,13 +613,32 @@ def serve_qr(filename):
     return send_from_directory(os.path.join('static', 'qr'), filename)
 
 
-@app.route('/download/<filename>')
+@app.route('/download/<filename>/<fmt>')
 @login_required
-def download_qr(filename):
-    """Allow logged in users to download their QR code image."""
-    return send_from_directory(
-        os.path.join('static', 'qr'), filename, as_attachment=True
-    )
+def download_qr(filename: str, fmt: str):
+    """Provide a QR code file in the requested format."""
+
+    # Look up the link so ownership and customisation details are available
+    link = Link.query.filter_by(qr_filename=filename).first_or_404()
+    if link.owner != current_user:
+        abort(403)
+
+    if fmt == 'png':
+        # Serve the existing PNG image from disk
+        return send_from_directory(
+            os.path.join('static', 'qr'), filename, as_attachment=True
+        )
+    if fmt == 'svg':
+        # Generate an SVG on the fly using the stored options
+        svg_bytes = generate_qr_svg(link)
+        return send_file(
+            svg_bytes,
+            mimetype='image/svg+xml',
+            as_attachment=True,
+            download_name=f"{link.slug}.svg",
+        )
+
+    abort(404)
 
 
 @app.route('/delete/<int:link_id>', methods=['POST'])
