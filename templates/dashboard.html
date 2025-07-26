@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Create new link</h2>
+<form method="post" action="{{ url_for('create_link') }}">
+  <div class="mb-3">
+    <label for="original_url" class="form-label">Long URL</label>
+    <input type="url" class="form-control" id="original_url" name="original_url" required>
+  </div>
+  <button type="submit" class="btn btn-primary">Shorten</button>
+</form>
+
+<hr>
+<h2>Your links</h2>
+<table class="table table-striped">
+  <thead>
+    <tr><th>Slug</th><th>Original URL</th><th>QR Code</th><th>Visits</th></tr>
+  </thead>
+  <tbody>
+    {% for link in links %}
+    <tr>
+      <td>{{ link.slug }}</td>
+      <td><a href="{{ link.original_url }}" target="_blank">{{ link.original_url }}</a></td>
+      <td><img src="{{ url_for('serve_qr', filename=link.qr_filename) }}" width="100"></td>
+      <td>{{ link.visit_count }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
