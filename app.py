@@ -59,6 +59,13 @@ class Link(db.Model):
     short_code = db.Column(db.String(10), unique=True, nullable=False)
     original_url = db.Column(db.String(2048), nullable=False)
     qr_filename = db.Column(db.String(128), nullable=False)
+    # Store the customisation options used to generate the current QR code
+    fill_color = db.Column(db.String(7), default="#000000")
+    back_color = db.Column(db.String(7), default="#FFFFFF")
+    box_size = db.Column(db.Integer, default=10)
+    border = db.Column(db.Integer, default=4)
+    pattern = db.Column(db.String(10), default="square")
+    error_correction = db.Column(db.String(1), default="M")
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     visit_count = db.Column(db.Integer, default=0)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
@@ -395,6 +402,13 @@ def create_link():
         short_code=short_code,
         original_url=original_url,
         qr_filename=qr_filename,
+        # Persist customisation options so the user can refine them later
+        fill_color=fill_color,
+        back_color=back_color,
+        box_size=box_size,
+        border=border,
+        pattern=pattern,
+        error_correction=error_correction,
         owner=current_user
     )
     db.session.add(link)
@@ -458,6 +472,13 @@ def customize_link(link_id: int):
         pattern=pattern,
         logo_filename=logo_filename,
     )
+    # Persist the updated customisation options
+    link.fill_color = fill_color
+    link.back_color = back_color
+    link.box_size = box_size
+    link.border = border
+    link.pattern = pattern
+    link.error_correction = error_correction
     db.session.commit()
     flash('QR code updated')
     return redirect(url_for('index'))
@@ -511,6 +532,23 @@ def initialize_database() -> None:
                 while Link.query.filter_by(short_code=code).first() is not None:
                     code = generate_short_code()
                 link.short_code = code
+            db.session.commit()
+
+        # Add customisation columns if they are missing so existing
+        # installations pick up new features without manual migrations.
+        if 'fill_color' not in link_columns:
+            db.session.execute(text("ALTER TABLE link ADD COLUMN fill_color VARCHAR(7) DEFAULT '#000000'"))
+        if 'back_color' not in link_columns:
+            db.session.execute(text("ALTER TABLE link ADD COLUMN back_color VARCHAR(7) DEFAULT '#FFFFFF'"))
+        if 'box_size' not in link_columns:
+            db.session.execute(text("ALTER TABLE link ADD COLUMN box_size INTEGER DEFAULT 10"))
+        if 'border' not in link_columns:
+            db.session.execute(text("ALTER TABLE link ADD COLUMN border INTEGER DEFAULT 4"))
+        if 'pattern' not in link_columns:
+            db.session.execute(text("ALTER TABLE link ADD COLUMN pattern VARCHAR(10) DEFAULT 'square'"))
+        if 'error_correction' not in link_columns:
+            db.session.execute(text("ALTER TABLE link ADD COLUMN error_correction VARCHAR(1) DEFAULT 'M'"))
+        if any(col not in link_columns for col in ['fill_color', 'back_color', 'box_size', 'border', 'pattern', 'error_correction']):
             db.session.commit()
 
         # Ensure a settings row is present

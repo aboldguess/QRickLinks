@@ -85,35 +85,35 @@
         <form method="post" action="{{ url_for('customize_link', link_id=link.id) }}" enctype="multipart/form-data" class="row g-2">
           <div class="col-md-2">
             <label for="fill_color{{ link.id }}" class="form-label">Foreground</label>
-            <input type="color" class="form-control form-control-color" id="fill_color{{ link.id }}" name="fill_color" value="#000000">
+            <input type="color" class="form-control form-control-color" id="fill_color{{ link.id }}" name="fill_color" value="{{ link.fill_color }}">
           </div>
           <div class="col-md-2">
             <label for="back_color{{ link.id }}" class="form-label">Background</label>
-            <input type="color" class="form-control form-control-color" id="back_color{{ link.id }}" name="back_color" value="#ffffff">
+            <input type="color" class="form-control form-control-color" id="back_color{{ link.id }}" name="back_color" value="{{ link.back_color }}">
           </div>
           <div class="col-md-1">
             <label for="box_size{{ link.id }}" class="form-label">Box</label>
-            <input type="number" class="form-control" id="box_size{{ link.id }}" name="box_size" value="10" min="1" max="20">
+            <input type="number" class="form-control" id="box_size{{ link.id }}" name="box_size" value="{{ link.box_size }}" min="1" max="20">
           </div>
           <div class="col-md-1">
             <label for="border{{ link.id }}" class="form-label">Border</label>
-            <input type="number" class="form-control" id="border{{ link.id }}" name="border" value="4" min="0" max="10">
+            <input type="number" class="form-control" id="border{{ link.id }}" name="border" value="{{ link.border }}" min="0" max="10">
           </div>
           <div class="col-md-2">
             <label for="pattern{{ link.id }}" class="form-label">Pattern</label>
             <select id="pattern{{ link.id }}" name="pattern" class="form-select">
-              <option value="square" selected>Square</option>
-              <option value="rounded">Rounded</option>
-              <option value="circle">Circle</option>
+              <option value="square" {% if link.pattern == 'square' %}selected{% endif %}>Square</option>
+              <option value="rounded" {% if link.pattern == 'rounded' %}selected{% endif %}>Rounded</option>
+              <option value="circle" {% if link.pattern == 'circle' %}selected{% endif %}>Circle</option>
             </select>
           </div>
           <div class="col-md-2">
             <label for="error_correction{{ link.id }}" class="form-label">Redundancy</label>
             <select id="error_correction{{ link.id }}" name="error_correction" class="form-select">
-              <option value="L">L</option>
-              <option value="M" selected>M</option>
-              <option value="Q">Q</option>
-              <option value="H">H</option>
+              <option value="L" {% if link.error_correction == 'L' %}selected{% endif %}>L</option>
+              <option value="M" {% if link.error_correction == 'M' %}selected{% endif %}>M</option>
+              <option value="Q" {% if link.error_correction == 'Q' %}selected{% endif %}>Q</option>
+              <option value="H" {% if link.error_correction == 'H' %}selected{% endif %}>H</option>
             </select>
           </div>
           <div class="col-md-2">
