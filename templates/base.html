@@ -18,6 +18,13 @@
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
   <div class="container-fluid">
     <a class="navbar-brand" href="{{ url_for('index') }}">QRickLinks</a>
+    <div class="navbar-nav me-auto">
+      {% if current_user.is_authenticated and current_user.is_premium %}
+      <span class="nav-link disabled text-warning">Pro</span>
+      {% else %}
+      <a class="nav-link text-white" href="{{ url_for('pricing') }}">Pricing</a>
+      {% endif %}
+    </div>
     <div class="d-flex">
       {% if current_user.is_authenticated %}
       <span class="navbar-text me-2">Logged in as {{ current_user.username }}</span>

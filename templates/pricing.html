@@ -1,0 +1,8 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Pricing</h2>
+<p>The Pro plan unlocks unlimited customisation and analytics. During early access the subscription is free.</p>
+{% if current_user.is_authenticated and not current_user.is_premium %}
+<a class="btn btn-primary" href="{{ url_for('subscribe') }}">Subscribe for Free</a>
+{% endif %}
+{% endblock %}

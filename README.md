@@ -65,6 +65,15 @@ Log in at `http://localhost:5000/admin/login` to view site statistics and manage
 
 Advanced features such as custom colours, advanced styling, logo embedding and analytics views are limited for free users. The monthly quotas for each feature can be configured from the admin settings page. Users marked as premium are not restricted by these limits.
 
+Each account also receives a small number of "freebies" every month which allow
+going over the free quotas. The remaining count and renewal date are displayed
+on the dashboard so users know when their allowance refreshes. Upgrading to the
+Pro plan removes all restrictions.
+
+Visit the new `/pricing` page for plan details and a simple upgrade form. The
+current early access program grants the Pro subscription for free but records
+the opt-in so payment processing can be integrated later.
+
 ## Notes
 
 This project uses SQLite for simplicity and stores generated QR codes in `static/qr/`.

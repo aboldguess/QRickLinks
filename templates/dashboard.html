@@ -1,5 +1,9 @@
 {% extends 'base.html' %}
 {% block content %}
+<div class="alert alert-secondary">
+  Freebies remaining: {{ current_user.freebies_remaining }}
+  (renews {{ current_user.freebies_reset.strftime('%Y-%m-%d') }})
+</div>
 <h2>Create new link</h2>
 <form method="post" action="{{ url_for('create_link') }}">
   <div class="mb-3">

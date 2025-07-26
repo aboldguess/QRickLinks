@@ -1,6 +1,6 @@
 import os
 import random
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from flask import (
     Flask,
@@ -43,6 +43,9 @@ db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
+# Number of extra premium actions granted to new/free accounts each month
+FREEBIES_PER_MONTH = 3
+
 # ----------------------------
 # Database Models
 # ----------------------------
@@ -61,6 +64,13 @@ class User(UserMixin, db.Model):
     advanced_styles_used = db.Column(db.Integer, default=0)
     logo_embedding_used = db.Column(db.Integer, default=0)
     analytics_used = db.Column(db.Integer, default=0)
+    # Track how many extra premium actions a free user may perform
+    freebies_remaining = db.Column(db.Integer, default=FREEBIES_PER_MONTH)
+    # Date when the freebies counter resets for the next period
+    freebies_reset = db.Column(
+        db.DateTime,
+        default=lambda: (datetime.utcnow().replace(day=1) + timedelta(days=32)).replace(day=1),
+    )
 
     def set_password(self, password: str) -> None:
         """Hash and store the user's password."""
@@ -363,6 +373,15 @@ def reset_usage_if_needed(user: User) -> None:
         user.analytics_used = 0
         db.session.commit()
 
+    # Freebies reset independently of the monthly counters. When the stored
+    # reset date is reached or passed, refresh the freebies allotment and set
+    # the next renewal for the first of the following month.
+    if user.freebies_reset and datetime.utcnow() >= user.freebies_reset:
+        user.freebies_remaining = FREEBIES_PER_MONTH
+        next_reset = user.freebies_reset.replace(day=1) + timedelta(days=32)
+        user.freebies_reset = next_reset.replace(day=1)
+        db.session.commit()
+
 
 def check_feature_usage(user: User, feature: str) -> bool:
     """Return True if the user may use the feature, recording usage."""
@@ -374,6 +393,13 @@ def check_feature_usage(user: User, feature: str) -> bool:
     limit = getattr(settings, limit_field)
     used = getattr(user, used_field)
     if used >= limit:
+        # Allow usage if the user still has freebies available. Each action
+        # consumes one freebie so users can sample premium features before
+        # subscribing.
+        if user.freebies_remaining > 0:
+            user.freebies_remaining -= 1
+            db.session.commit()
+            return True
         return False
     setattr(user, used_field, used + 1)
     db.session.commit()
@@ -440,6 +466,26 @@ def logout():
     """Log the current user out."""
     logout_user()
     return redirect(url_for('login'))
+
+
+@app.route('/pricing')
+def pricing():
+    """Display subscription options."""
+    return render_template('pricing.html')
+
+
+@app.route('/subscribe', methods=['GET', 'POST'])
+@login_required
+def subscribe():
+    """Upgrade the current user to a premium subscription."""
+    if request.method == 'POST':
+        current_user.is_premium = True
+        payment = Payment(user=current_user, amount=0.0)
+        db.session.add(payment)
+        db.session.commit()
+        flash('Subscription activated!')
+        return redirect(url_for('index'))
+    return render_template('subscribe.html')
 
 
 # ----------------------------
@@ -799,6 +845,8 @@ def initialize_database() -> None:
             'advanced_styles_used': 'INTEGER DEFAULT 0',
             'logo_embedding_used': 'INTEGER DEFAULT 0',
             'analytics_used': 'INTEGER DEFAULT 0',
+            'freebies_remaining': f'INTEGER DEFAULT {FREEBIES_PER_MONTH}',
+            'freebies_reset': 'DATETIME',
         }
         added_user_cols = False
         for column, ddl in user_map.items():
@@ -807,6 +855,14 @@ def initialize_database() -> None:
                 added_user_cols = True
 
         if added_user_cols:
+            db.session.commit()
+            # Initialise freebies for existing users so everyone starts
+            # with a full allocation once the new columns are added.
+            next_reset = (datetime.utcnow().replace(day=1) + timedelta(days=32)).replace(day=1)
+            User.query.update({
+                User.freebies_remaining: FREEBIES_PER_MONTH,
+                User.freebies_reset: next_reset,
+            })
             db.session.commit()
 
         # Retrieve column information for the link table so we can determine
