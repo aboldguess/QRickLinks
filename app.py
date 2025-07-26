@@ -7,6 +7,10 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user, UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 import qrcode
+from qrcode.image.styledpil import StyledPilImage
+from qrcode.image.styles.moduledrawers import RoundedModuleDrawer, SquareModuleDrawer
+from qrcode.image.styles.colormasks import SolidFillColorMask
+from PIL import Image
 
 # Initialize Flask app and database
 app = Flask(__name__)
@@ -85,14 +89,57 @@ def generate_words() -> str:
     return f"{first_adj}.{second_adj}.{noun}"
 
 
-def create_qr_code(url: str, slug: str) -> str:
-    """Generate QR code image and return filename."""
-    qr = qrcode.QRCode(box_size=10, border=4)
+def create_qr_code(
+    url: str,
+    slug: str,
+    *,
+    fill_color: str = "black",
+    back_color: str = "white",
+    box_size: int = 10,
+    border: int = 4,
+    error_correction: str = "M",
+    rounded: bool = False,
+    logo_file=None,
+) -> str:
+    """Generate a customized QR code image and return the saved filename."""
+
+    # Map single-letter error correction codes to qrcode constants
+    correction_map = {
+        "L": qrcode.constants.ERROR_CORRECT_L,
+        "M": qrcode.constants.ERROR_CORRECT_M,
+        "Q": qrcode.constants.ERROR_CORRECT_Q,
+        "H": qrcode.constants.ERROR_CORRECT_H,
+    }
+
+    qr = qrcode.QRCode(
+        box_size=box_size,
+        border=border,
+        error_correction=correction_map.get(error_correction, qrcode.constants.ERROR_CORRECT_M),
+    )
     qr.add_data(url)
     qr.make(fit=True)
-    img = qr.make_image(fill='black', back_color='white')
+
+    # Choose square or rounded modules depending on the form selection
+    drawer = RoundedModuleDrawer() if rounded else SquareModuleDrawer()
+
+    img = qr.make_image(
+        image_factory=StyledPilImage,
+        module_drawer=drawer,
+        color_mask=SolidFillColorMask(back_color=back_color, front_color=fill_color),
+    )
+
+    if logo_file:
+        # Overlay the uploaded logo at the center of the QR code
+        logo = Image.open(logo_file)
+        img = img.convert("RGBA")
+        width, height = img.size
+        logo_size = width // 5  # Scale logo to 20% of QR size
+        logo.thumbnail((logo_size, logo_size))
+        position = ((width - logo.width) // 2, (height - logo.height) // 2)
+        img.paste(logo, position, mask=logo)
+
     filename = f"{slug}.png"
-    filepath = os.path.join('static', 'qr', filename)
+    filepath = os.path.join("static", "qr", filename)
     img.save(filepath)
     return filename
 
@@ -151,16 +198,37 @@ def logout():
 @app.route('/create', methods=['POST'])
 @login_required
 def create_link():
-    """Create a shortened link and corresponding QR code."""
-    original_url = request.form['original_url']
+    """Create a shortened link and a customized QR code."""
+
+    original_url = request.form["original_url"]
+
+    # Optional customization parameters from the form
+    fill_color = request.form.get("fill_color", "#000000")
+    back_color = request.form.get("back_color", "#ffffff")
+    box_size = int(request.form.get("box_size", 10))
+    border = int(request.form.get("border", 4))
+    error_correction = request.form.get("error_correction", "M")
+    rounded = request.form.get("rounded") == "on"
+    logo_file = request.files.get("logo")
+
     slug = generate_words()
 
     # Ensure slug is unique; regenerate if collision occurs
     while Link.query.filter_by(slug=slug).first() is not None:
         slug = generate_words()
 
-    short_url = url_for('redirect_link', slug=slug, _external=True)
-    qr_filename = create_qr_code(short_url, slug)
+    short_url = url_for("redirect_link", slug=slug, _external=True)
+    qr_filename = create_qr_code(
+        short_url,
+        slug,
+        fill_color=fill_color,
+        back_color=back_color,
+        box_size=box_size,
+        border=border,
+        error_correction=error_correction,
+        rounded=rounded,
+        logo_file=logo_file,
+    )
 
     link = Link(
         slug=slug,
@@ -178,6 +246,15 @@ def create_link():
 def serve_qr(filename):
     """Serve generated QR code images."""
     return send_from_directory(os.path.join('static', 'qr'), filename)
+
+
+@app.route('/download/<filename>')
+@login_required
+def download_qr(filename):
+    """Provide a QR code file as a download attachment."""
+    return send_from_directory(
+        os.path.join('static', 'qr'), filename, as_attachment=True
+    )
 
 
 @app.route('/<slug>')
