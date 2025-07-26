@@ -40,23 +40,31 @@
         <div><a href="{{ link.code_url }}" target="_blank">{{ link.short_code }}</a></div>
         <div><a href="{{ link.original_url }}" target="_blank">{{ link.original_url }}</a></div>
       </div>
-      <div class="text-center mb-2">
-        <img src="{{ url_for('serve_qr', filename=link.qr_filename) }}" width="100" class="mb-1">
-        <!-- Show a small screenshot of the original page -->
-        <img src="{{ link.thumbnail_url }}" width="100" class="mb-1" alt="Preview">
-        <div>{{ link.visit_count }} visits</div>
-        <div class="link-actions mt-1">
-          <a href="{{ url_for('download_qr', filename=link.qr_filename) }}" class="btn btn-sm btn-secondary mb-1">
-            <span class="icon-sm">D</span><span class="text-label">Download</span>
-          </a>
+      <div class="d-flex mb-2">
+        <div class="me-3 text-center">
+          <img src="{{ url_for('serve_qr', filename=link.qr_filename) }}" width="100" class="mb-1">
+          <!-- Show a small screenshot of the original page -->
+          <img src="{{ link.thumbnail_url }}" width="100" class="mb-1" alt="Preview">
+          <div>{{ link.visit_count }} visits</div>
+        </div>
+        <div class="link-actions btn-group-vertical">
+          <div class="btn-group mb-1">
+            <button type="button" class="btn btn-sm btn-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+              <span class="icon-sm">D</span><span class="text-label">Download</span>
+            </button>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="{{ url_for('download_qr', filename=link.qr_filename, fmt='png') }}">PNG</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('download_qr', filename=link.qr_filename, fmt='svg') }}">SVG</a></li>
+            </ul>
+          </div>
           <a href="{{ url_for('link_details', link_id=link.id) }}" class="btn btn-sm btn-info mb-1">
             <span class="icon-sm">i</span><span class="text-label">Details</span>
           </a>
-          <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#c{{ link.id }}" aria-expanded="false" aria-controls="c{{ link.id }}">
+          <button class="btn btn-sm btn-outline-primary mb-1" type="button" data-bs-toggle="collapse" data-bs-target="#c{{ link.id }}" aria-expanded="false" aria-controls="c{{ link.id }}">
             <span class="icon-sm">C</span><span class="text-label">Customize</span>
           </button>
-          <form method="post" action="{{ url_for('delete_link', link_id=link.id) }}" class="d-inline">
-            <button type="submit" class="btn btn-sm btn-danger mb-1" onclick="return confirm('Delete this link and all visit records? This cannot be undone.');">
+          <form method="post" action="{{ url_for('delete_link', link_id=link.id) }}">
+            <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete this link and all visit records? This cannot be undone.');">
               <span class="icon-sm">X</span><span class="text-label">Delete</span>
             </button>
           </form>
