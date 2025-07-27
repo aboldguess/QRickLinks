@@ -485,6 +485,34 @@ def send_reset_email(to_email: str, reset_link: str) -> None:
         print('Failed to send reset email:', exc)
         print(f'Reset link for {to_email}: {reset_link}')
 
+
+def send_test_email(to_email: str) -> None:
+    """Send a simple message to verify SMTP settings."""
+    settings = get_settings()
+    # When no server is configured output the notification to the console
+    if not settings.smtp_server:
+        print(f'Test email destination: {to_email}')
+        return
+
+    from email.message import EmailMessage
+    import smtplib
+
+    msg = EmailMessage()
+    msg['Subject'] = 'QRickLinks Test Email'
+    msg['From'] = settings.smtp_sender
+    msg['To'] = to_email
+    msg.set_content('This is a test email from QRickLinks.')
+
+    try:
+        with smtplib.SMTP(settings.smtp_server, settings.smtp_port, timeout=10) as server:
+            if settings.smtp_use_tls:
+                server.starttls()
+            if settings.smtp_username:
+                server.login(settings.smtp_username, settings.smtp_password)
+            server.send_message(msg)
+    except Exception as exc:  # pragma: no cover - best effort logging
+        print('Failed to send test email:', exc)
+
 # Map premium features to their Setting quota and User usage fields
 FEATURE_LIMIT_FIELDS = {
     'links': ('links_limit', 'links_created'),
@@ -957,6 +985,19 @@ def admin_password_settings():
         flash('Email settings updated')
         return redirect(url_for('admin_dashboard'))
     return render_template('admin_password_settings.html', settings=settings)
+
+
+@app.route('/admin/test_email', methods=['POST'])
+@admin_required
+def admin_test_email():
+    """Send a test email using the current SMTP configuration."""
+    # Retrieve the target address from the submitted form
+    email = request.form.get('test_email')
+    if email:
+        # Attempt delivery using the helper above
+        send_test_email(email)
+        flash('Test email attempted. Check your inbox or console output.')
+    return redirect(url_for('admin_password_settings'))
 
 
 @app.route('/admin/users')
