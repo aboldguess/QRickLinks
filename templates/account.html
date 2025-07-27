@@ -25,7 +25,6 @@
     {% for feat, remaining in quotas.items() %}
     <tr><td>{{ feat.replace('_',' ').title() }}</td><td>{{ remaining }}</td></tr>
     {% endfor %}
-    <tr><td>Freebies</td><td>{{ current_user.freebies_remaining }}</td></tr>
   </tbody>
 </table>
 <h3>Billing Information</h3>

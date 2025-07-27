@@ -1,9 +1,6 @@
 {% extends 'base.html' %}
 {% block content %}
 <h2>Colour Themes</h2>
-<div class="mb-3">
-  <p>Freebies remaining: {{ current_user.freebies_remaining }} (resets {{ current_user.freebies_reset.strftime('%Y-%m-%d') }})</p>
-</div>
 {% for t in themes %}
 <form method="post" class="row g-2 align-items-end mb-3">
   <!-- Add CSRF token for theme update form -->
