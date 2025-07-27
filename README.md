@@ -92,7 +92,17 @@ Leave the server field blank to disable email delivery. When no server is
 configured the reset link will be printed to the console.
 
 You can specify the server address, port, credentials, whether TLS should be
-used, the "from" address and how long reset tokens remain valid.
+used, the "from" address and how long reset tokens remain valid. After saving
+your settings you can send a test message from the same page to verify that
+delivery works.
+
+#### Example SMTP settings
+
+* **Gmail** – Server: `smtp.gmail.com`, Port: `587`, TLS enabled. Use an
+  application password if two-factor authentication is enabled or allow less
+  secure app access.
+* **GoDaddy** – Server: `smtpout.secureserver.net`, Port: `587`, TLS enabled.
+  Use your GoDaddy email address and password as the credentials.
 
 ## How it works
 
