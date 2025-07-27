@@ -133,6 +133,10 @@ class Link(db.Model):
     border = db.Column(db.Integer, default=4)
     pattern = db.Column(db.String(10), default="square")
     error_correction = db.Column(db.String(1), default="M")
+    # Barcode symbology used when generating the code. Currently only 'qr'
+    # produces an actual QR Code. Other values are placeholders for future
+    # expansion.
+    barcode_type = db.Column(db.String(20), default='qr')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     visit_count = db.Column(db.Integer, default=0)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
@@ -188,6 +192,8 @@ class ColourTheme(db.Model):
     border = db.Column(db.Integer, default=4)
     pattern = db.Column(db.String(10), default='square')
     error_correction = db.Column(db.String(1), default='M')
+    # Store preferred barcode type so themes can apply it consistently.
+    barcode_type = db.Column(db.String(20), default='qr')
     is_default = db.Column(db.Boolean, default=False)
 
 
@@ -283,6 +289,19 @@ LIMITED_PALETTE = [
     '#008080', '#000080', '#C0C0C0', '#808080'
 ]
 
+# Supported 2D barcode standards for advanced users. These values are stored
+# on each link but only 'qr' currently generates a QR Code. Other types are
+# placeholders for future implementation.
+BARCODE_TYPES = {
+    'qr': 'QR Code',
+    'gs1-datamatrix': 'GS1 DataMatrix',
+    'gs1-digital-link': 'GS1 Digital Link',
+    'pdf417': 'PDF417',
+    'aztec': 'Aztec Code',
+    'gs1-databar': 'GS1 DataBar',
+    'maxicode': 'MaxiCode',
+}
+
 
 def generate_words() -> str:
     """Generate a random 'adjective.adjective.noun' slug."""
@@ -349,9 +368,15 @@ def create_qr_code(
     border: int = 4,
     error_correction: str = "M",
     pattern: str = "square",
+    barcode_type: str = 'qr',
     logo_filename: str | None = None,
 ) -> str:
-    """Generate a customised QR code image and return its filename."""
+    """Generate a customised 2D barcode image and return its filename.
+
+    Only QR Codes are currently generated regardless of ``barcode_type``.
+    The parameter is stored so future versions can support additional
+    symbologies.
+    """
 
     # Map error correction levels from user-friendly letters to qrcode constants
     ec_map = {
@@ -431,7 +456,11 @@ def create_qr_code(
 
 
 def generate_qr_svg(link: 'Link') -> io.BytesIO:
-    """Return an SVG QR code for the given link."""
+    """Return an SVG barcode for the given link.
+
+    The ``barcode_type`` attribute of ``link`` is currently ignored and a QR
+    Code is always produced.
+    """
 
     # Recreate the short URL that the existing PNG encodes
     base_url = get_settings().base_url.rstrip('/')
@@ -648,6 +677,7 @@ def index():
         can_styles=can_styles,
         themes=themes,
         limited_palette=LIMITED_PALETTE,
+        barcode_types=BARCODE_TYPES,
     )
 
 
@@ -900,6 +930,7 @@ def user_settings():
                 border=int(request.form['border']),
                 pattern=request.form['pattern'],
                 error_correction=request.form['error_correction'],
+                barcode_type=request.form.get('barcode_type', 'qr'),
                 is_default='is_default' in request.form,
             )
             if theme.is_default:
@@ -919,6 +950,7 @@ def user_settings():
             theme.border = int(request.form['border'])
             theme.pattern = request.form['pattern']
             theme.error_correction = request.form['error_correction']
+            theme.barcode_type = request.form.get('barcode_type', 'qr')
             if 'is_default' in request.form:
                 ColourTheme.query.filter_by(user_id=current_user.id).update({ColourTheme.is_default: False})
                 theme.is_default = True
@@ -942,6 +974,7 @@ def user_settings():
         can_add=can_add,
         palette_full=palette_full,
         limited_palette=LIMITED_PALETTE,
+        barcode_types=BARCODE_TYPES,
     )
 
 
@@ -1164,6 +1197,7 @@ def create_link():
     border = int(request.form.get("border", 4))
     pattern = request.form.get("pattern", "square")
     error_correction = request.form.get("error_correction", "M")
+    barcode_type = request.form.get("barcode_type", "qr")
     logo_file = request.files.get("logo")
     logo_filename = None
 
@@ -1182,7 +1216,9 @@ def create_link():
     ) and not check_feature_usage(current_user, 'advanced_styles'):
         flash('Advanced styling quota exceeded')
         return redirect(url_for('index'))
-    if pattern != 'square' and not check_feature_usage(current_user, 'code_formats'):
+    if (
+        pattern != 'square' or barcode_type != 'qr'
+    ) and not check_feature_usage(current_user, 'code_formats'):
         flash('Code formats quota exceeded')
         return redirect(url_for('index'))
     if logo_file and logo_file.filename and not check_feature_usage(current_user, 'logo_embedding'):
@@ -1217,6 +1253,7 @@ def create_link():
         border=border,
         error_correction=error_correction,
         pattern=pattern,
+        barcode_type=barcode_type,
         logo_filename=logo_filename,
     )
     # Abort link creation if the QR code could not be generated
@@ -1235,6 +1272,7 @@ def create_link():
         border=border,
         pattern=pattern,
         error_correction=error_correction,
+        barcode_type=barcode_type,
         owner=current_user
     )
     db.session.add(link)
@@ -1323,6 +1361,7 @@ def customize_link(link_id: int):
         border = theme.border
         pattern = theme.pattern
         error_correction = theme.error_correction
+        barcode_type = theme.barcode_type
     else:
         fill_color = request.form.get("fill_color", "#000000")
         back_color = request.form.get("back_color", "#FFFFFF")
@@ -1330,6 +1369,7 @@ def customize_link(link_id: int):
         border = int(request.form.get("border", 4))
         pattern = request.form.get("pattern", "square")
         error_correction = request.form.get("error_correction", "M")
+        barcode_type = request.form.get("barcode_type", "qr")
 
     # Perform quota checks for the various customisation options the user is
     # attempting to modify. Only consume quota when the submitted value differs
@@ -1339,7 +1379,9 @@ def customize_link(link_id: int):
     ) and not check_feature_usage(current_user, 'custom_colors'):
         flash('Custom colours quota exceeded')
         return redirect(url_for('index'))
-    if link.pattern != pattern and not check_feature_usage(current_user, 'code_formats'):
+    if (
+        link.pattern != pattern or link.barcode_type != barcode_type
+    ) and not check_feature_usage(current_user, 'code_formats'):
         flash('Code formats quota exceeded')
         return redirect(url_for('index'))
 
@@ -1382,6 +1424,7 @@ def customize_link(link_id: int):
         border=border,
         error_correction=error_correction,
         pattern=pattern,
+        barcode_type=barcode_type,
         logo_filename=logo_filename,
     )
     # Abort update if QR generation failed
@@ -1394,6 +1437,7 @@ def customize_link(link_id: int):
     link.border = border
     link.pattern = pattern
     link.error_correction = error_correction
+    link.barcode_type = barcode_type
     db.session.commit()
     flash('QR code updated')
     return redirect(url_for('index'))
@@ -1597,6 +1641,7 @@ def initialize_database() -> None:
             "border": "INTEGER DEFAULT 4",
             "pattern": "VARCHAR(10) DEFAULT 'square'",
             "error_correction": "VARCHAR(1) DEFAULT 'M'",
+            "barcode_type": "VARCHAR(20) DEFAULT 'qr'",
         }
 
         added_custom_columns = False
