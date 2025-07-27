@@ -16,6 +16,7 @@ QRickLinks is a simple URL shortening service that generates short, memorable sl
 - Basic visit tracking (IP address and referrer)
 - Admin dashboard with site statistics and settings
 - Subscription paywall for advanced QR code features
+- Personal "My Account" page to manage quotas, billing info and subscription
 
 ## Setup
 
