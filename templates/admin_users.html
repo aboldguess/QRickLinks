@@ -5,7 +5,7 @@
   <thead>
     <tr>
       <th>Username</th>
-      <th>Premium</th>
+      <th>Tier</th>
       <th>Links</th>
       <th>Total Clicks</th>
       <th>Payments</th>
@@ -15,7 +15,7 @@
     {% for row in users %}
     <tr>
       <td>{{ row.user.username }}</td>
-      <td>{{ 'Yes' if row.user.is_premium else 'No' }}</td>
+      <td>{{ row.user.tier.name if row.user.tier else 'Free' }}</td>
       <td>{{ row.link_count }}</td>
       <td>{{ row.total_clicks }}</td>
       <td>

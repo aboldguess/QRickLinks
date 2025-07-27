@@ -25,7 +25,11 @@
     removed to keep the form simple. After the link is created, these settings
     can be adjusted from the "Customize" pull-down next to each entry.
   #}
+  {% if can_create %}
   <button type="submit" class="btn btn-primary">Shorten</button>
+  {% else %}
+  <a class="btn btn-primary disabled" href="{{ url_for('pricing') }}">Shorten</a>
+  {% endif %}
 </form>
 
 <hr>

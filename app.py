@@ -79,6 +79,11 @@ class User(UserMixin, db.Model):
     billing_card_last4 = db.Column(db.String(4))
     billing_expiry = db.Column(db.String(7))  # Stored as MM/YYYY
     subscription_renewal = db.Column(db.DateTime)
+    # Reference to the user's current subscription tier. This is null when
+    # the database is first migrated and users will be assigned the free tier
+    # automatically on login or registration.
+    tier_id = db.Column(db.Integer, db.ForeignKey('subscription_tier.id'))
+    tier = db.relationship('SubscriptionTier')
 
     def set_password(self, password: str) -> None:
         """Hash and store the user's password."""
@@ -417,25 +422,34 @@ def reset_usage_if_needed(user: User) -> None:
         db.session.commit()
 
 
-def check_feature_usage(user: User, feature: str) -> bool:
-    """Return True if the user may use the feature, recording usage."""
+def can_use_feature(user: User, feature: str) -> bool:
+    """Return True if the user has remaining quota for the feature."""
     reset_usage_if_needed(user)
-    if user.is_premium:
+    tier = user.tier or SubscriptionTier.query.filter_by(name='Free').first()
+    if getattr(tier, f'{feature}_unlimited'):
         return True
-    settings = get_settings()
-    limit_field, used_field = FEATURE_LIMIT_FIELDS[feature]
-    limit = getattr(settings, limit_field)
+    limit = getattr(tier, f'{feature}_limit') or 0
+    used_field = FEATURE_LIMIT_FIELDS[feature][1]
     used = getattr(user, used_field)
-    if used >= limit:
-        # Allow usage if the user still has freebies available. Each action
-        # consumes one freebie so users can sample premium features before
-        # subscribing.
-        if user.freebies_remaining > 0:
-            user.freebies_remaining -= 1
-            db.session.commit()
-            return True
+    if used < limit:
+        return True
+    return user.freebies_remaining > 0
+
+
+def check_feature_usage(user: User, feature: str) -> bool:
+    """Return True and record usage if quota permits."""
+    if not can_use_feature(user, feature):
         return False
-    setattr(user, used_field, used + 1)
+
+    tier = user.tier or SubscriptionTier.query.filter_by(name='Free').first()
+    if not getattr(tier, f'{feature}_unlimited'):
+        used_field = FEATURE_LIMIT_FIELDS[feature][1]
+        limit = getattr(tier, f'{feature}_limit') or 0
+        used = getattr(user, used_field)
+        if used >= limit and user.freebies_remaining > 0:
+            user.freebies_remaining -= 1
+        else:
+            setattr(user, used_field, used + 1)
     db.session.commit()
     return True
 
@@ -460,8 +474,10 @@ def index():
     # Refresh monthly usage counters so the freebies display is accurate
     reset_usage_if_needed(current_user)
     links = Link.query.filter_by(owner=current_user).all()
-    # No additional parameters required; the template can use link.short_url
-    return render_template('dashboard.html', links=links)
+    # Determine if the user still has link creation quota available so the
+    # template can disable the form when exhausted.
+    can_create = can_use_feature(current_user, 'links')
+    return render_template('dashboard.html', links=links, can_create=can_create)
 
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -474,6 +490,9 @@ def register():
             flash('Username already exists')
             return redirect(url_for('register'))
         user = User(username=username)
+        # Automatically place new accounts on the free tier so quota checks use
+        # the correct limits from the start.
+        user.tier = SubscriptionTier.query.filter_by(name='Free').first()
         user.set_password(password)
         db.session.add(user)
         db.session.commit()
@@ -490,6 +509,12 @@ def login():
         password = request.form['password']
         user = User.query.filter_by(username=username).first()
         if user and user.check_password(password):
+            # Existing accounts created before tiers were introduced won't
+            # have a tier assigned. Default them to the free tier so usage
+            # limits work correctly.
+            if user.tier is None:
+                user.tier = SubscriptionTier.query.filter_by(name='Free').first()
+                db.session.commit()
             login_user(user)
             return redirect(url_for('index'))
         flash('Invalid credentials')
@@ -529,7 +554,9 @@ def checkout(tier_id: int):
     if request.method == 'POST':
         # Perform a fake transaction. The real payment logic will be added
         # later using Stripe.
-        current_user.is_premium = True
+        # Assign the selected tier to the user. Payment handling will be
+        # integrated later so this simply records the choice.
+        current_user.tier = tier
         payment = Payment(user=current_user, amount=tier.monthly_price)
         db.session.add(payment)
         db.session.commit()
@@ -543,7 +570,9 @@ def checkout(tier_id: int):
 def subscribe():
     """Upgrade the current user to a premium subscription."""
     if request.method == 'POST':
-        current_user.is_premium = True
+        # The early access program grants the Pro tier for free
+        pro_tier = SubscriptionTier.query.filter_by(name='Pro').first()
+        current_user.tier = pro_tier
         payment = Payment(user=current_user, amount=0.0)
         db.session.add(payment)
         db.session.commit()
@@ -558,18 +587,15 @@ def account():
     """Display subscription status, quotas and billing details."""
     # Refresh monthly counters so quota calculations are correct
     reset_usage_if_needed(current_user)
-    settings = get_settings()
-
-    # Build a mapping of feature -> remaining quota text
+    # Build a mapping of feature -> remaining quota text using the user's tier
     quotas: dict[str, str] = {}
+    tier = current_user.tier or SubscriptionTier.query.filter_by(name='Free').first()
     for feat in FEATURE_LIMIT_FIELDS:
-        limit_field, used_field = FEATURE_LIMIT_FIELDS[feat]
-        if current_user.is_premium:
-            # Paid accounts have no limits
+        used_field = FEATURE_LIMIT_FIELDS[feat][1]
+        if getattr(tier, f'{feat}_unlimited'):
             quotas[feat] = 'Unlimited'
         else:
-            # Calculate how much of the free quota remains for this feature
-            limit = getattr(settings, limit_field)
+            limit = getattr(tier, f'{feat}_limit') or 0
             used = getattr(current_user, used_field)
             quotas[feat] = f"{max(limit - used, 0)} of {limit}"
 
@@ -589,8 +615,8 @@ def account():
 @login_required
 def cancel_subscription():
     """Downgrade the current user to the free plan."""
-    # Clear premium flag and any stored renewal date
-    current_user.is_premium = False
+    # Move the user back to the free tier and clear any renewal date
+    current_user.tier = SubscriptionTier.query.filter_by(name='Free').first()
     current_user.subscription_renewal = None
     db.session.commit()
     flash('Subscription cancelled')
@@ -772,6 +798,10 @@ def create_link():
     logo_file = request.files.get("logo")
     logo_filename = None
 
+    if logo_file and logo_file.filename and not check_feature_usage(current_user, 'logo_embedding'):
+        flash('Logo embedding quota exceeded')
+        return redirect(url_for('index'))
+
     # Free tier limits for premium features
     if (fill_color != "#000000" or back_color != "#FFFFFF") and not check_feature_usage(current_user, 'custom_colors'):
         flash('Custom colours quota exceeded')
@@ -903,8 +933,23 @@ def customize_link(link_id: int):
     if link.owner != current_user:
         abort(403)
 
-    if not check_feature_usage(current_user, 'analytics'):
-        flash('Analytics quota exceeded')
+    # Perform quota checks for the various customisation options the user is
+    # attempting to modify. Each option corresponds to a premium feature tier.
+    # Only consume quota when the submitted value differs from what is already
+    # stored for the link so repeated saves do not double count.
+    if (
+        link.fill_color != request.form.get('fill_color', link.fill_color) or
+        link.back_color != request.form.get('back_color', link.back_color)
+    ) and not check_feature_usage(current_user, 'custom_colors'):
+        flash('Custom colours quota exceeded')
+        return redirect(url_for('index'))
+    if (
+        link.box_size != int(request.form.get('box_size', link.box_size)) or
+        link.border != int(request.form.get('border', link.border)) or
+        link.pattern != request.form.get('pattern', link.pattern) or
+        link.error_correction != request.form.get('error_correction', link.error_correction)
+    ) and not check_feature_usage(current_user, 'advanced_styles'):
+        flash('Advanced styling quota exceeded')
         return redirect(url_for('index'))
 
     # Extract customisation parameters from the submitted form
@@ -918,6 +963,9 @@ def customize_link(link_id: int):
     logo_filename = None
 
     if logo_file and logo_file.filename:
+        if not check_feature_usage(current_user, 'logo_embedding'):
+            flash('Logo embedding quota exceeded')
+            return redirect(url_for('index'))
         # Store the uploaded logo file under a predictable name
         logo_filename = f"{link.slug}_{secure_filename(logo_file.filename)}"
         logo_path = os.path.join("static", "logos", logo_filename)
@@ -959,9 +1007,9 @@ def link_details(link_id: int):
     link = Link.query.get_or_404(link_id)
     if link.owner != current_user:
         abort(403)
-    # Free users should not access analytics. Show a locked page instead of
-    # returning visit data when the account is not premium.
-    if not current_user.is_premium:
+    # Determine whether analytics quota permits viewing the details.  Usage is
+    # only recorded when access is granted.
+    if not check_feature_usage(current_user, 'analytics'):
         return render_template('link_details.html', link=link, premium=False)
 
     # Retrieve all visits for this link ordered newest first
@@ -1044,6 +1092,7 @@ def initialize_database() -> None:
             'billing_card_last4': 'VARCHAR(4)',
             'billing_expiry': 'VARCHAR(7)',
             'subscription_renewal': 'DATETIME',
+            'tier_id': 'INTEGER',
         }
         added_user_cols = False
         for column, ddl in user_map.items():
@@ -1061,6 +1110,9 @@ def initialize_database() -> None:
                 User.freebies_reset: next_reset,
                 User.links_created: 0,
             })
+            free_tier = SubscriptionTier.query.filter_by(name='Free').first()
+            if free_tier:
+                User.query.filter(User.tier_id.is_(None)).update({User.tier_id: free_tier.id})
             db.session.commit()
 
         # Retrieve column information for the link table so we can determine
@@ -1193,10 +1245,18 @@ def initialize_database() -> None:
         # costs nothing while the paid tiers include monthly and yearly options
         # that will be displayed on the pricing page.
         if SubscriptionTier.query.count() == 0:
+            free_settings = get_settings()
             db.session.add_all([
-                SubscriptionTier(name='Free'),
-                SubscriptionTier(name='Basic', monthly_price=5.0, yearly_price=50.0),
-                SubscriptionTier(name='Pro', monthly_price=10.0, yearly_price=100.0),
+                SubscriptionTier(
+                    name='Free',
+                    links_limit=free_settings.links_limit,
+                    custom_colors_limit=free_settings.custom_colors_limit,
+                    advanced_styles_limit=free_settings.advanced_styles_limit,
+                    logo_embedding_limit=free_settings.logo_embedding_limit,
+                    analytics_limit=free_settings.analytics_limit,
+                ),
+                SubscriptionTier(name='Basic', monthly_price=5.0, yearly_price=50.0, links_unlimited=True, custom_colors_unlimited=True, advanced_styles_unlimited=True, logo_embedding_unlimited=True, analytics_unlimited=True),
+                SubscriptionTier(name='Pro', monthly_price=10.0, yearly_price=100.0, links_unlimited=True, custom_colors_unlimited=True, advanced_styles_unlimited=True, logo_embedding_unlimited=True, analytics_unlimited=True),
             ])
             db.session.commit()
 

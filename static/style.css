@@ -38,6 +38,12 @@ body {
   align-items: stretch;
 }
 
+/* Disabled action buttons should appear inactive and ignore clicks */
+.btn.disabled {
+  pointer-events: none;
+  opacity: 0.65;
+}
+
 
 /* Highlight long URL input with a complementary colour */
 #original_url {
