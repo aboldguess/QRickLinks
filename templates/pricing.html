@@ -1,6 +1,14 @@
 {% extends 'base.html' %}
 {% block content %}
 <h2>Pricing</h2>
+<div class="text-center mb-3">
+  <div class="btn-group" role="group" aria-label="Billing toggle">
+    <input class="btn-check" type="radio" name="billing" id="billingMonthly" autocomplete="off" checked>
+    <label class="btn btn-outline-primary" for="billingMonthly">Monthly</label>
+    <input class="btn-check" type="radio" name="billing" id="billingYearly" autocomplete="off">
+    <label class="btn btn-outline-primary" for="billingYearly">Yearly</label>
+  </div>
+</div>
 <table class="table table-bordered text-center">
   <thead>
     <tr>
@@ -15,15 +23,9 @@
   </thead>
   <tbody>
     <tr>
-      <th>Regular Price</th>
+      <th>Price Per Month</th>
       {% for tier in tiers %}
-      <td>${{ '%.2f'|format(tier.regular_price) }}</td>
-      {% endfor %}
-    </tr>
-    <tr>
-      <th>Discounted Price</th>
-      {% for tier in tiers %}
-      <td>${{ '%.2f'|format(tier.discounted_price) }}</td>
+      <td class="price-cell" data-monthly="{{ tier.monthly_price }}" data-yearly="{{ tier.yearly_price }}"></td>
       {% endfor %}
     </tr>
     {% for feat in features %}
@@ -36,9 +38,35 @@
       {% endfor %}
     </tr>
     {% endfor %}
+    <tr>
+      <th>Total Cost Today</th>
+      {% for tier in tiers %}
+      <td class="total-cell" data-monthly="{{ tier.monthly_price }}" data-yearly="{{ tier.yearly_price }}"></td>
+      {% endfor %}
+    </tr>
   </tbody>
 </table>
 {% if current_user.is_authenticated and not current_user.is_premium %}
 <a class="btn btn-primary" href="{{ url_for('subscribe') }}">Subscribe</a>
 {% endif %}
+<script>
+function updatePrices() {
+  const yearly = document.getElementById('billingYearly').checked;
+  document.querySelectorAll('.price-cell').forEach(cell => {
+    const monthly = parseFloat(cell.dataset.monthly || 0);
+    const yearlyPrice = parseFloat(cell.dataset.yearly || 0);
+    const perMonth = yearly ? yearlyPrice / 12 : monthly;
+    cell.textContent = `$${perMonth.toFixed(2)} / mo`;
+  });
+  document.querySelectorAll('.total-cell').forEach(cell => {
+    const monthly = parseFloat(cell.dataset.monthly || 0);
+    const yearlyPrice = parseFloat(cell.dataset.yearly || 0);
+    cell.textContent = yearly ? `$${yearlyPrice.toFixed(2)}` : `$${monthly.toFixed(2)}`;
+  });
+}
+document.querySelectorAll('input[name="billing"]').forEach(el => {
+  el.addEventListener('change', updatePrices);
+});
+updatePrices();
+</script>
 {% endblock %}

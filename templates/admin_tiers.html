@@ -19,16 +19,16 @@
     </thead>
     <tbody>
       <tr>
-        <th>Regular Price</th>
+        <th>Monthly Price</th>
         {% for tier in tiers %}
-        <td><input type="number" step="0.01" class="form-control" name="{{ tier.id }}_regular_price" value="{{ tier.regular_price }}"></td>
+        <td><input type="number" step="0.01" class="form-control" name="{{ tier.id }}_monthly_price" value="{{ tier.monthly_price }}"></td>
         {% endfor %}
         <td></td>
       </tr>
       <tr>
-        <th>Discounted Price</th>
+        <th>Yearly Price</th>
         {% for tier in tiers %}
-        <td><input type="number" step="0.01" class="form-control" name="{{ tier.id }}_discounted_price" value="{{ tier.discounted_price }}"></td>
+        <td><input type="number" step="0.01" class="form-control" name="{{ tier.id }}_yearly_price" value="{{ tier.yearly_price }}"></td>
         {% endfor %}
         <td></td>
       </tr>

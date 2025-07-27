@@ -164,8 +164,10 @@ class SubscriptionTier(db.Model):
     """Defines a pricing tier with feature limits."""
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), nullable=False, unique=True)
-    regular_price = db.Column(db.Float, default=0.0)
-    discounted_price = db.Column(db.Float, default=0.0)
+    # Cost of the subscription when billed monthly
+    monthly_price = db.Column(db.Float, default=0.0)
+    # Cost of the subscription when billed yearly
+    yearly_price = db.Column(db.Float, default=0.0)
     highlight_text = db.Column(db.String(100))
     custom_colors_limit = db.Column(db.Integer)
     custom_colors_unlimited = db.Column(db.Boolean, default=False)
@@ -612,8 +614,13 @@ def admin_tiers():
             return redirect(url_for('admin_tiers'))
         # Update existing tiers with submitted values
         for tier in tiers:
-            tier.regular_price = float(request.form.get(f'{tier.id}_regular_price', tier.regular_price or 0))
-            tier.discounted_price = float(request.form.get(f'{tier.id}_discounted_price', tier.discounted_price or 0))
+            # Update subscription pricing for both billing intervals
+            tier.monthly_price = float(
+                request.form.get(f'{tier.id}_monthly_price', tier.monthly_price or 0)
+            )
+            tier.yearly_price = float(
+                request.form.get(f'{tier.id}_yearly_price', tier.yearly_price or 0)
+            )
             tier.highlight_text = request.form.get(f'{tier.id}_highlight_text', '')
             for feat in features:
                 limit_val = request.form.get(f'{tier.id}_{feat}_limit')
@@ -1049,6 +1056,29 @@ def initialize_database() -> None:
         if added_setting_cols:
             db.session.commit()
 
+        # Subscription tier pricing columns for monthly and yearly costs. Older
+        # databases only store a single price so add the new fields if needed.
+        tier_columns = [
+            row[1]
+            for row in db.session.execute(
+                text("PRAGMA table_info(subscription_tier)")
+            ).fetchall()
+        ]
+        tier_map = {
+            'monthly_price': 'FLOAT DEFAULT 0.0',
+            'yearly_price': 'FLOAT DEFAULT 0.0',
+        }
+        added_tier_cols = False
+        for column, ddl in tier_map.items():
+            if column not in tier_columns:
+                db.session.execute(
+                    text(f"ALTER TABLE subscription_tier ADD COLUMN {column} {ddl}")
+                )
+                added_tier_cols = True
+
+        if added_tier_cols:
+            db.session.commit()
+
         # Ensure a settings row is present
         get_settings()
 
@@ -1059,14 +1089,14 @@ def initialize_database() -> None:
             db.session.add(admin)
             db.session.commit()
 
-        # Create some default subscription tiers if none exist
+        # Create some default subscription tiers if none exist.  The free tier
+        # costs nothing while the paid tiers include monthly and yearly options
+        # that will be displayed on the pricing page.
         if SubscriptionTier.query.count() == 0:
             db.session.add_all([
                 SubscriptionTier(name='Free'),
-                SubscriptionTier(name='Basic Monthly', regular_price=5.0),
-                SubscriptionTier(name='Basic Yearly', regular_price=50.0),
-                SubscriptionTier(name='Pro Monthly', regular_price=10.0),
-                SubscriptionTier(name='Pro Yearly', regular_price=100.0),
+                SubscriptionTier(name='Basic', monthly_price=5.0, yearly_price=50.0),
+                SubscriptionTier(name='Pro', monthly_price=10.0, yearly_price=100.0),
             ])
             db.session.commit()
 
