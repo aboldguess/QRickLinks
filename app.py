@@ -68,8 +68,10 @@ app.register_blueprint(google_bp, url_prefix='/login')
 class User(UserMixin, db.Model):
     """Stores registered users."""
     id = db.Column(db.Integer, primary_key=True)
-    # Email is used for authentication and must be unique
-    email = db.Column(db.String(120), unique=True, nullable=True)
+    # Email is required for login and is also stored in the ``username`` field
+    # for backwards compatibility with older templates and routes that expect a
+    # ``username`` attribute.
+    email = db.Column(db.String(120), unique=True, nullable=False)
     username = db.Column(db.String(80), unique=True, nullable=False)
     # OAuth provider specific ID for Google logins
     google_id = db.Column(db.String(255), unique=True)
@@ -550,17 +552,16 @@ def index():
 def register():
     """User registration page."""
     if request.method == 'POST':
-        username = request.form.get('username')
+        # Email doubles as the username so no separate field is required
         email = request.form.get('email')
         password = request.form['password']
-        # Enforce unique usernames and email addresses
-        if User.query.filter_by(username=username).first():
-            flash('Username already exists')
-            return redirect(url_for('register'))
+        # Ensure the email address isn't already registered
         if User.query.filter_by(email=email).first():
             flash('Email already registered')
             return redirect(url_for('register'))
-        user = User(username=username, email=email)
+        # Store the email in both the ``email`` and ``username`` columns so
+        # legacy code referencing ``username`` continues to function.
+        user = User(username=email, email=email)
         # Automatically place new accounts on the free tier so quota checks use
         # the correct limits from the start.
         user.tier = SubscriptionTier.query.filter_by(name='Free').first()
@@ -576,12 +577,10 @@ def register():
 def login():
     """User login page."""
     if request.method == 'POST':
-        # Allow login using either the email or username field
+        # Look up the account purely by email
         email = request.form.get('email')
         password = request.form['password']
-        user = User.query.filter(
-            (User.email == email) | (User.username == email)
-        ).first()
+        user = User.query.filter_by(email=email).first()
         if user and user.check_password(password):
             # Existing accounts created before tiers were introduced won't
             # have a tier assigned. Default them to the free tier so usage
@@ -610,15 +609,11 @@ def google_authorized():
         (User.google_id == info.get('id')) | (User.email == info.get('email'))
     ).first()
     if not user:
-        # Generate a unique username from the Google email
-        base = info.get('email', 'google').split('@')[0]
-        username = base
-        count = 1
-        while User.query.filter_by(username=username).first():
-            username = f'{base}{count}'
-            count += 1
+        # Create the account using the Google email for both ``email`` and
+        # ``username`` so existing code that references ``username`` continues
+        # to work seamlessly.
         user = User(
-            username=username,
+            username=info.get('email'),
             email=info.get('email'),
             google_id=info.get('id'),
         )
@@ -851,9 +846,10 @@ def user_settings():
 def admin_login():
     """Admin login page with fixed credentials."""
     if request.method == 'POST':
-        username = request.form['username']
+        # Admins also authenticate using their email address
+        email = request.form['email']
         password = request.form['password']
-        user = User.query.filter_by(username=username, is_admin=True).first()
+        user = User.query.filter_by(email=email, is_admin=True).first()
         if user and user.check_password(password):
             login_user(user)
             return redirect(url_for('admin_dashboard'))
@@ -1512,8 +1508,10 @@ def initialize_database() -> None:
         get_settings()
 
         # Create the administrator account if it doesn't already exist
-        if not User.query.filter_by(username='philadmin', is_admin=True).first():
-            admin = User(username='philadmin', is_admin=True)
+        if not User.query.filter_by(email='admin@example.com', is_admin=True).first():
+            # Use the same value for email and username to keep older code
+            # functional while relying solely on the email for authentication.
+            admin = User(username='admin@example.com', email='admin@example.com', is_admin=True)
             admin.set_password('Admin12345')
             db.session.add(admin)
             db.session.commit()
