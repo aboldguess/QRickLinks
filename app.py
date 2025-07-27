@@ -14,6 +14,7 @@ from flask import (
     send_file,
 )
 from urllib.parse import urlparse, quote
+import requests  # used for server-side IP geolocation lookups
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user, UserMixin
 from flask_wtf import CSRFProtect
@@ -318,6 +319,22 @@ def get_mac_address(ip: str) -> str | None:
                     if part.count(":") == 5:
                         return part
     except Exception:
+        pass
+    return None
+
+
+def lookup_geo(ip: str) -> tuple[float, float] | None:
+    """Return latitude and longitude for the given IP using ip-api.com."""
+    try:
+        # ip-api's free tier only works over HTTP. Perform the request server-side
+        # so browsers viewing the dashboard don't run into mixed content issues.
+        resp = requests.get(f"http://ip-api.com/json/{ip}", timeout=5)
+        data = resp.json()
+        if data.get("status") == "success":
+            return data.get("lat"), data.get("lon")
+    except Exception:
+        # Network errors or malformed responses are ignored so location
+        # markers simply won't appear for the problematic IP.
         pass
     return None
 
@@ -1409,6 +1426,13 @@ def link_details(link_id: int):
         key = (v.ip, v.mac)
         unique_map.setdefault(key, []).append(v.timestamp)
 
+    # Fetch approximate geolocation for each unique IP so the template can
+    # place markers on a map without exposing the ip-api request to the client.
+    ip_locations: dict[str, tuple[float, float] | None] = {}
+    for ip, _ in unique_map.keys():
+        if ip and ip not in ip_locations:
+            ip_locations[ip] = lookup_geo(ip)
+
     return render_template(
         'link_details.html',
         link=link,
@@ -1416,6 +1440,7 @@ def link_details(link_id: int):
         total_clicks=link.visit_count,
         unique_count=len(unique_map),
         visit_map=unique_map,
+        ip_locations=ip_locations,
     )
 
 
