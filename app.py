@@ -514,6 +514,24 @@ def pricing():
                            getattr=getattr)
 
 
+@app.route('/checkout/<int:tier_id>', methods=['GET', 'POST'])
+@login_required
+def checkout(tier_id: int):
+    """Placeholder checkout page for purchasing a subscription tier."""
+    # Look up the selected tier or return 404 if it doesn't exist
+    tier = SubscriptionTier.query.get_or_404(tier_id)
+    if request.method == 'POST':
+        # Perform a fake transaction. The real payment logic will be added
+        # later using Stripe.
+        current_user.is_premium = True
+        payment = Payment(user=current_user, amount=tier.monthly_price)
+        db.session.add(payment)
+        db.session.commit()
+        flash(f'Subscribed to {tier.name}!')
+        return redirect(url_for('index'))
+    return render_template('checkout.html', tier=tier)
+
+
 @app.route('/subscribe', methods=['GET', 'POST'])
 @login_required
 def subscribe():

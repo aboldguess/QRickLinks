@@ -1,0 +1,10 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Checkout: {{ tier.name }}</h2>
+{# Placeholder messaging until Stripe integration is implemented #}
+<p>This is a placeholder checkout page. Payment processing will be added soon.</p>
+<form method="post">
+  <button type="submit" class="btn btn-success">Complete Purchase</button>
+  <a href="{{ url_for('pricing') }}" class="btn btn-secondary ms-2">Cancel</a>
+</form>
+{% endblock %}
