@@ -1,15 +1,125 @@
 {% extends 'base.html' %}
 {% block content %}
-<h2>Account Settings</h2>
-<div class="card mb-3">
-  <div class="card-body">
-    <p>Freebies remaining: {{ current_user.freebies_remaining }} (resets {{ current_user.freebies_reset.strftime('%Y-%m-%d') }})</p>
-    {% if current_user.tier and current_user.tier.name != 'Free' %}
-    <p>You have an active <strong>{{ current_user.tier.name }}</strong> subscription.</p>
+<h2>Colour Themes</h2>
+<div class="mb-3">
+  <p>Freebies remaining: {{ current_user.freebies_remaining }} (resets {{ current_user.freebies_reset.strftime('%Y-%m-%d') }})</p>
+</div>
+{% for t in themes %}
+<form method="post" class="row g-2 align-items-end mb-3">
+  <input type="hidden" name="theme_id" value="{{ t.id }}">
+  <div class="col-md-2">
+    <input type="text" class="form-control" name="name" value="{{ t.name }}" required>
+  </div>
+  <div class="col-md-2">
+    {% if palette_full %}
+    <input type="color" class="form-control form-control-color" name="fill_color" value="{{ t.fill_color }}">
     {% else %}
-    <p>You are currently on the free plan.</p>
-    <a class="btn btn-primary" href="{{ url_for('pricing') }}">Upgrade</a>
+    <select class="form-select" name="fill_color">
+      {% for col in limited_palette %}
+      <option value="{{ col }}" style="background-color: {{ col }};" {% if t.fill_color==col %}selected{% endif %}>{{ col }}</option>
+      {% endfor %}
+    </select>
     {% endif %}
   </div>
-</div>
+  <div class="col-md-2">
+    {% if palette_full %}
+    <input type="color" class="form-control form-control-color" name="back_color" value="{{ t.back_color }}">
+    {% else %}
+    <select class="form-select" name="back_color">
+      {% for col in limited_palette %}
+      <option value="{{ col }}" style="background-color: {{ col }};" {% if t.back_color==col %}selected{% endif %}>{{ col }}</option>
+      {% endfor %}
+    </select>
+    {% endif %}
+  </div>
+  <div class="col-md-1">
+    <input type="number" class="form-control" name="box_size" value="{{ t.box_size }}" min="1" max="20">
+  </div>
+  <div class="col-md-1">
+    <input type="number" class="form-control" name="border" value="{{ t.border }}" min="0" max="10">
+  </div>
+  <div class="col-md-2">
+    <select name="pattern" class="form-select">
+      <option value="square" {% if t.pattern=='square' %}selected{% endif %}>Square</option>
+      <option value="rounded" {% if t.pattern=='rounded' %}selected{% endif %}>Rounded</option>
+      <option value="circle" {% if t.pattern=='circle' %}selected{% endif %}>Circle</option>
+    </select>
+  </div>
+  <div class="col-md-1">
+    <select name="error_correction" class="form-select">
+      <option value="L" {% if t.error_correction=='L' %}selected{% endif %}>L</option>
+      <option value="M" {% if t.error_correction=='M' %}selected{% endif %}>M</option>
+      <option value="Q" {% if t.error_correction=='Q' %}selected{% endif %}>Q</option>
+      <option value="H" {% if t.error_correction=='H' %}selected{% endif %}>H</option>
+    </select>
+  </div>
+  <div class="col-md-1 text-center">
+    <input class="form-check-input" type="radio" name="is_default" value="on" {% if t.is_default %}checked{% endif %}>
+  </div>
+  <div class="col-md-1">
+    <button type="submit" name="update_theme" class="btn btn-sm btn-primary">Save</button>
+  </div>
+  <div class="col-md-1">
+    <button type="submit" name="delete_theme" value="{{ t.id }}" class="btn btn-sm btn-danger">Delete</button>
+  </div>
+</form>
+{% endfor %}
+{% if can_add %}
+<form method="post" class="row g-2 align-items-end">
+  <div class="col-md-2">
+    <input type="text" class="form-control" name="name" placeholder="Theme name" required>
+  </div>
+  <div class="col-md-2">
+    {% if palette_full %}
+    <input type="color" class="form-control form-control-color" name="fill_color" value="#000000">
+    {% else %}
+    <select class="form-select" name="fill_color">
+      {% for col in limited_palette %}
+      <option value="{{ col }}" style="background-color: {{ col }};">{{ col }}</option>
+      {% endfor %}
+    </select>
+    {% endif %}
+  </div>
+  <div class="col-md-2">
+    {% if palette_full %}
+    <input type="color" class="form-control form-control-color" name="back_color" value="#FFFFFF">
+    {% else %}
+    <select class="form-select" name="back_color">
+      {% for col in limited_palette %}
+      <option value="{{ col }}" style="background-color: {{ col }};">{{ col }}</option>
+      {% endfor %}
+    </select>
+    {% endif %}
+  </div>
+  <div class="col-md-1">
+    <input type="number" class="form-control" name="box_size" value="10" min="1" max="20">
+  </div>
+  <div class="col-md-1">
+    <input type="number" class="form-control" name="border" value="4" min="0" max="10">
+  </div>
+  <div class="col-md-2">
+    <select name="pattern" class="form-select">
+      <option value="square">Square</option>
+      <option value="rounded">Rounded</option>
+      <option value="circle">Circle</option>
+    </select>
+  </div>
+  <div class="col-md-1">
+    <select name="error_correction" class="form-select">
+      <option value="L">L</option>
+      <option value="M" selected>M</option>
+      <option value="Q">Q</option>
+      <option value="H">H</option>
+    </select>
+  </div>
+  <div class="col-md-1 text-center">
+    <input class="form-check-input" type="radio" name="is_default">
+  </div>
+  <div class="col-md-1">
+    <button type="submit" name="create_theme" class="btn btn-sm btn-success">Add</button>
+  </div>
+</form>
+{% else %}
+<p>You have reached your colour theme quota.</p>
+{% endif %}
 {% endblock %}

@@ -91,25 +91,50 @@
     </div>
     <div class="collapse mt-2" id="c{{ link.id }}">
       <form method="post" action="{{ url_for('customize_link', link_id=link.id) }}" enctype="multipart/form-data" class="row g-2">
+          <div class="col-md-3">
+            <label class="form-label">Apply Theme</label>
+            <select name="theme_id" class="form-select" {% if not can_colors and not can_styles %}disabled{% endif %}>
+              <option value="">-- none --</option>
+              {% for t in themes %}
+              <option value="{{ t.id }}" {% if t.is_default %}selected{% endif %}>{{ t.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
           <div class="col-md-2">
             <label for="fill_color{{ link.id }}" class="form-label">Foreground</label>
-            <input type="color" class="form-control form-control-color" id="fill_color{{ link.id }}" name="fill_color" value="{{ link.fill_color }}">
+            {% if palette_full %}
+            <input type="color" class="form-control form-control-color" id="fill_color{{ link.id }}" name="fill_color" value="{{ link.fill_color }}" {% if not can_colors %}disabled{% endif %}>
+            {% else %}
+            <select id="fill_color{{ link.id }}" name="fill_color" class="form-select" {% if not can_colors %}disabled{% endif %}>
+              {% for col in limited_palette %}
+              <option value="{{ col }}" style="background-color: {{ col }};" {% if link.fill_color==col %}selected{% endif %}>{{ col }}</option>
+              {% endfor %}
+            </select>
+            {% endif %}
           </div>
           <div class="col-md-2">
             <label for="back_color{{ link.id }}" class="form-label">Background</label>
-            <input type="color" class="form-control form-control-color" id="back_color{{ link.id }}" name="back_color" value="{{ link.back_color }}">
+            {% if palette_full %}
+            <input type="color" class="form-control form-control-color" id="back_color{{ link.id }}" name="back_color" value="{{ link.back_color }}" {% if not can_colors %}disabled{% endif %}>
+            {% else %}
+            <select id="back_color{{ link.id }}" name="back_color" class="form-select" {% if not can_colors %}disabled{% endif %}>
+              {% for col in limited_palette %}
+              <option value="{{ col }}" style="background-color: {{ col }};" {% if link.back_color==col %}selected{% endif %}>{{ col }}</option>
+              {% endfor %}
+            </select>
+            {% endif %}
           </div>
           <div class="col-md-1">
             <label for="box_size{{ link.id }}" class="form-label">Box</label>
-            <input type="number" class="form-control" id="box_size{{ link.id }}" name="box_size" value="{{ link.box_size }}" min="1" max="20">
+            <input type="number" class="form-control" id="box_size{{ link.id }}" name="box_size" value="{{ link.box_size }}" min="1" max="20" {% if not can_styles %}disabled{% endif %}>
           </div>
           <div class="col-md-1">
             <label for="border{{ link.id }}" class="form-label">Border</label>
-            <input type="number" class="form-control" id="border{{ link.id }}" name="border" value="{{ link.border }}" min="0" max="10">
+            <input type="number" class="form-control" id="border{{ link.id }}" name="border" value="{{ link.border }}" min="0" max="10" {% if not can_styles %}disabled{% endif %}>
           </div>
           <div class="col-md-2">
             <label for="pattern{{ link.id }}" class="form-label">Pattern</label>
-            <select id="pattern{{ link.id }}" name="pattern" class="form-select">
+            <select id="pattern{{ link.id }}" name="pattern" class="form-select" {% if not can_styles %}disabled{% endif %}>
               <option value="square" {% if link.pattern == 'square' %}selected{% endif %}>Square</option>
               <option value="rounded" {% if link.pattern == 'rounded' %}selected{% endif %}>Rounded</option>
               <option value="circle" {% if link.pattern == 'circle' %}selected{% endif %}>Circle</option>
@@ -117,7 +142,7 @@
           </div>
           <div class="col-md-2">
             <label for="error_correction{{ link.id }}" class="form-label">Redundancy</label>
-            <select id="error_correction{{ link.id }}" name="error_correction" class="form-select">
+            <select id="error_correction{{ link.id }}" name="error_correction" class="form-select" {% if not can_styles %}disabled{% endif %}>
               <option value="L" {% if link.error_correction == 'L' %}selected{% endif %}>L</option>
               <option value="M" {% if link.error_correction == 'M' %}selected{% endif %}>M</option>
               <option value="Q" {% if link.error_correction == 'Q' %}selected{% endif %}>Q</option>
