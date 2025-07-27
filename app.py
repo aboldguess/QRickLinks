@@ -312,10 +312,16 @@ def create_qr_code(
     # Convert colour strings to RGB tuples that PIL understands. Using RGB
     # avoids an alpha channel, which would otherwise make the QR code drawing
     # treat the background as transparent and produce a solid square.
-    if isinstance(fill_color, str):
-        fill_color = ImageColor.getcolor(fill_color, "RGB")
-    if isinstance(back_color, str):
-        back_color = ImageColor.getcolor(back_color, "RGB")
+    try:
+        if isinstance(fill_color, str):
+            fill_color = ImageColor.getcolor(fill_color, "RGB")
+        if isinstance(back_color, str):
+            back_color = ImageColor.getcolor(back_color, "RGB")
+    except ValueError:
+        # Invalid colour code supplied; notify the user and abort the
+        # QR generation process gracefully.
+        flash("Invalid colour value provided")
+        return None
 
     # Use a color mask so foreground/background colours can be customised
     color_mask = SolidFillColorMask(back_color=back_color, front_color=fill_color)
@@ -854,6 +860,9 @@ def create_link():
         pattern=pattern,
         logo_filename=logo_filename,
     )
+    # Abort link creation if the QR code could not be generated
+    if qr_filename is None:
+        return redirect(url_for('index'))
 
     link = Link(
         slug=slug,
@@ -995,6 +1004,9 @@ def customize_link(link_id: int):
         pattern=pattern,
         logo_filename=logo_filename,
     )
+    # Abort update if QR generation failed
+    if link.qr_filename is None:
+        return redirect(url_for('index'))
     # Persist the updated customisation options
     link.fill_color = fill_color
     link.back_color = back_color
