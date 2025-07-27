@@ -16,7 +16,8 @@ import argparse
 
 # Import the Flask application instance from app.py
 # Import the Flask app and database initialization helper
-from app import app, initialize_database
+from app import app, initialize_database, get_settings
+import socket
 
 try:
     # Waitress is a lightweight production WSGI server
@@ -47,6 +48,26 @@ def main() -> None:
 
     # Prepare the database before starting the web server
     initialize_database()
+
+    # Update the base URL setting so QR codes and links are reachable over
+    # the network.  ``socket`` is used to detect the local IP address without
+    # making an external request.  The resulting URL includes the chosen port
+    # so it matches the running server.
+    from app import db
+    with app.app_context():
+        settings = get_settings()
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            local_ip = s.getsockname()[0]
+            s.close()
+        except Exception:
+            # Fallback to localhost if the IP cannot be determined (e.g. no
+            # network connection). This still allows local usage.
+            local_ip = "localhost"
+        settings.base_url = f"http://{local_ip}:{args.port}"
+        # Persist the change immediately in case the server is restarted later.
+        db.session.commit()
 
     if args.production and serve:
         # Start the app with Waitress for better performance in production
