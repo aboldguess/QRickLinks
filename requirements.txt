@@ -7,3 +7,4 @@ Pillow
 waitress
 Flask-Dance
 itsdangerous
+requests

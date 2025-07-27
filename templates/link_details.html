@@ -36,20 +36,15 @@
   const map = L.map('map').setView([0,0], 2);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19}).addTo(map);
   {#
-    Convert map keys to a list of IPs for JSON serialisation. The map filter
-    returns a generator, so apply the list filter after mapping to materialise
-    the sequence before passing it to the tojson filter.
+    ``ip_locations`` contains a mapping of IP address to ``[lat, lon]`` pairs
+    provided by the server.  Iterate over these entries and add markers for
+    any IPs that resolved successfully.
   #}
-  const ips = {{ visit_map.keys()|map(attribute=0)|list|tojson }};
-  ips.forEach(ip => {
-    // Use HTTPS to avoid mixed content warnings when the site runs over HTTPS
-    fetch('https://ip-api.com/json/' + ip)
-      .then(r => r.json())
-      .then(d => {
-        if (d.status === 'success') {
-          L.marker([d.lat, d.lon]).addTo(map).bindPopup(ip);
-        }
-      });
+  const locations = {{ ip_locations|tojson }};
+  Object.entries(locations).forEach(([ip, coords]) => {
+    if (coords) {
+      L.marker(coords).addTo(map).bindPopup(ip);
+    }
   });
 </script>
 {% endif %}
