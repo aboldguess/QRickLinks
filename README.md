@@ -7,6 +7,7 @@ QRickLinks is a Flask application that combines a traditional URL shortener with
 - User registration and email/password or Google OAuth login
 - Random `adjective.adjective.noun` slug generation alongside a base62 short code
 - Automatic QR code creation for every link with extensive customisation options
+  including multiple module patterns such as rounded, gapped and bar styles
 - Dashboard showing existing links, usage quotas and visit counts
 - Basic analytics that record IP address, MAC address (when available) and referrer
 - Thumbnail previews of destination pages via the thum.io service

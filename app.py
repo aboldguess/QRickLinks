@@ -29,6 +29,9 @@ from qrcode.image.styles.moduledrawers import (
     SquareModuleDrawer,
     RoundedModuleDrawer,
     CircleModuleDrawer,
+    GappedSquareModuleDrawer,
+    HorizontalBarsDrawer,
+    VerticalBarsDrawer,
 )
 from qrcode.image.svg import SvgPathImage
 from qrcode.image.styles.moduledrawers import svg as svg_drawers
@@ -86,6 +89,7 @@ class User(UserMixin, db.Model):
     usage_month = db.Column(db.String(7), default=lambda: datetime.utcnow().strftime('%Y-%m'))
     custom_colors_used = db.Column(db.Integer, default=0)
     advanced_styles_used = db.Column(db.Integer, default=0)
+    code_formats_used = db.Column(db.Integer, default=0)
     logo_embedding_used = db.Column(db.Integer, default=0)
     analytics_used = db.Column(db.Integer, default=0)
     # Count how many times the user selected a custom slug this month
@@ -198,6 +202,8 @@ class Setting(db.Model):
     analytics_limit = db.Column(db.Integer, default=100)
     # Number of custom slugs free users may choose each month
     custom_slugs_limit = db.Column(db.Integer, default=5)
+    # How many times free users may change the QR module format
+    code_formats_limit = db.Column(db.Integer, default=5)
     # SMTP server used for password reset emails
     smtp_server = db.Column(db.String(120), default='')
     smtp_port = db.Column(db.Integer, default=587)
@@ -235,6 +241,8 @@ class SubscriptionTier(db.Model):
     custom_colors_unlimited = db.Column(db.Boolean, default=False)
     advanced_styles_limit = db.Column(db.Integer)
     advanced_styles_unlimited = db.Column(db.Boolean, default=False)
+    code_formats_limit = db.Column(db.Integer)
+    code_formats_unlimited = db.Column(db.Boolean, default=False)
     logo_embedding_limit = db.Column(db.Integer)
     logo_embedding_unlimited = db.Column(db.Boolean, default=False)
     analytics_limit = db.Column(db.Integer)
@@ -353,6 +361,10 @@ def create_qr_code(
         # curvature so connected modules blend together cleanly.
         "rounded": RoundedModuleDrawer(radius_ratio=1),
         "circle": CircleModuleDrawer(),
+        # Additional styles for premium customisation
+        "gapped": GappedSquareModuleDrawer(),
+        "bars-horizontal": HorizontalBarsDrawer(),
+        "bars-vertical": VerticalBarsDrawer(),
     }
     # Fallback to a square pattern if an unknown option is provided
     drawer = drawers.get(pattern, SquareModuleDrawer())
@@ -430,6 +442,10 @@ def generate_qr_svg(link: 'Link') -> io.BytesIO:
         'square': svg_drawers.SvgPathSquareDrawer(),
         'rounded': svg_drawers.SvgPathCircleDrawer(),
         'circle': svg_drawers.SvgPathCircleDrawer(),
+        # Fallback to square rendering for styles not supported in SVG
+        'gapped': svg_drawers.SvgPathSquareDrawer(),
+        'bars-horizontal': svg_drawers.SvgPathSquareDrawer(),
+        'bars-vertical': svg_drawers.SvgPathSquareDrawer(),
     }
     drawer = svg_map.get(link.pattern, svg_drawers.SvgPathSquareDrawer())
 
@@ -518,6 +534,7 @@ FEATURE_LIMIT_FIELDS = {
     'links': ('links_limit', 'links_created'),
     'custom_colors': ('custom_colors_limit', 'custom_colors_used'),
     'advanced_styles': ('advanced_styles_limit', 'advanced_styles_used'),
+    'code_formats': ('code_formats_limit', 'code_formats_used'),
     'logo_embedding': ('logo_embedding_limit', 'logo_embedding_used'),
     'analytics': ('analytics_limit', 'analytics_used'),
     'custom_slugs': ('custom_slugs_limit', 'custom_slugs_used'),
@@ -531,6 +548,7 @@ def reset_usage_if_needed(user: User) -> None:
         user.usage_month = current_month
         user.custom_colors_used = 0
         user.advanced_styles_used = 0
+        user.code_formats_used = 0
         user.logo_embedding_used = 0
         user.analytics_used = 0
         user.custom_slugs_used = 0
@@ -751,6 +769,7 @@ def pricing():
         'links',
         'custom_colors',
         'advanced_styles',
+        'code_formats',
         'logo_embedding',
         'analytics',
         'custom_slugs',
@@ -959,6 +978,7 @@ def admin_settings():
         settings.links_limit = int(request.form['links_limit'])
         settings.custom_colors_limit = int(request.form['custom_colors_limit'])
         settings.advanced_styles_limit = int(request.form['advanced_styles_limit'])
+        settings.code_formats_limit = int(request.form['code_formats_limit'])
         settings.logo_embedding_limit = int(request.form['logo_embedding_limit'])
         settings.analytics_limit = int(request.form['analytics_limit'])
         settings.custom_slugs_limit = int(request.form['custom_slugs_limit'])
@@ -1032,6 +1052,7 @@ def admin_tiers():
         'links',
         'custom_colors',
         'advanced_styles',
+        'code_formats',
         'logo_embedding',
         'analytics',
         'custom_slugs',
@@ -1140,10 +1161,12 @@ def create_link():
     if (
         box_size != 10
         or border != 4
-        or pattern != 'square'
         or error_correction != 'M'
     ) and not check_feature_usage(current_user, 'advanced_styles'):
         flash('Advanced styling quota exceeded')
+        return redirect(url_for('index'))
+    if pattern != 'square' and not check_feature_usage(current_user, 'code_formats'):
+        flash('Code formats quota exceeded')
         return redirect(url_for('index'))
     if logo_file and logo_file.filename and not check_feature_usage(current_user, 'logo_embedding'):
         flash('Logo embedding quota exceeded')
@@ -1299,9 +1322,13 @@ def customize_link(link_id: int):
     ) and not check_feature_usage(current_user, 'custom_colors'):
         flash('Custom colours quota exceeded')
         return redirect(url_for('index'))
+    if link.pattern != pattern and not check_feature_usage(current_user, 'code_formats'):
+        flash('Code formats quota exceeded')
+        return redirect(url_for('index'))
+
     if (
         link.box_size != box_size or link.border != border or
-        link.pattern != pattern or link.error_correction != error_correction
+        link.error_correction != error_correction
     ) and not check_feature_usage(current_user, 'advanced_styles'):
         flash('Advanced styling quota exceeded')
         return redirect(url_for('index'))
@@ -1437,6 +1464,12 @@ def initialize_database() -> None:
             'yearly_price': 'FLOAT DEFAULT 0.0',
             'links_limit': 'INTEGER',
             'links_unlimited': 'BOOLEAN DEFAULT 0',
+            'custom_colors_limit': 'INTEGER',
+            'custom_colors_unlimited': 'BOOLEAN DEFAULT 0',
+            'advanced_styles_limit': 'INTEGER',
+            'advanced_styles_unlimited': 'BOOLEAN DEFAULT 0',
+            'code_formats_limit': 'INTEGER',
+            'code_formats_unlimited': 'BOOLEAN DEFAULT 0',
             'custom_slugs_limit': 'INTEGER',
             'custom_slugs_unlimited': 'BOOLEAN DEFAULT 0',
             'full_palette': 'BOOLEAN DEFAULT 0',
@@ -1470,6 +1503,7 @@ def initialize_database() -> None:
             'usage_month': "VARCHAR(7) DEFAULT '{}'".format(datetime.utcnow().strftime('%Y-%m')),
             'custom_colors_used': 'INTEGER DEFAULT 0',
             'advanced_styles_used': 'INTEGER DEFAULT 0',
+            'code_formats_used': 'INTEGER DEFAULT 0',
             'logo_embedding_used': 'INTEGER DEFAULT 0',
             'analytics_used': 'INTEGER DEFAULT 0',
             'custom_slugs_used': 'INTEGER DEFAULT 0',
@@ -1494,6 +1528,7 @@ def initialize_database() -> None:
             User.query.update({
                 User.links_created: 0,
                 User.custom_slugs_used: 0,
+                User.code_formats_used: 0,
             })
             free_tier = SubscriptionTier.query.filter_by(name='Free').first()
             if free_tier:
@@ -1592,6 +1627,7 @@ def initialize_database() -> None:
             'links_limit': 'INTEGER DEFAULT 20',
             'custom_colors_limit': 'INTEGER DEFAULT 5',
             'advanced_styles_limit': 'INTEGER DEFAULT 5',
+            'code_formats_limit': 'INTEGER DEFAULT 5',
             'logo_embedding_limit': 'INTEGER DEFAULT 1',
             'analytics_limit': 'INTEGER DEFAULT 100',
             'custom_slugs_limit': 'INTEGER DEFAULT 5',
@@ -1637,14 +1673,15 @@ def initialize_database() -> None:
                     links_limit=free_settings.links_limit,
                     custom_colors_limit=free_settings.custom_colors_limit,
                     advanced_styles_limit=free_settings.advanced_styles_limit,
+                    code_formats_limit=free_settings.code_formats_limit,
                     logo_embedding_limit=free_settings.logo_embedding_limit,
                     analytics_limit=free_settings.analytics_limit,
                     custom_slugs_limit=free_settings.custom_slugs_limit,
                     full_palette=False,
                     colour_themes_limit=1,
                 ),
-                SubscriptionTier(name='Basic', monthly_price=5.0, yearly_price=50.0, links_unlimited=True, custom_colors_unlimited=True, advanced_styles_unlimited=True, logo_embedding_unlimited=True, analytics_unlimited=True, custom_slugs_unlimited=True, full_palette=False, colour_themes_limit=3),
-                SubscriptionTier(name='Pro', monthly_price=10.0, yearly_price=100.0, links_unlimited=True, custom_colors_unlimited=True, advanced_styles_unlimited=True, logo_embedding_unlimited=True, analytics_unlimited=True, custom_slugs_unlimited=True, full_palette=True, colour_themes_unlimited=True),
+                SubscriptionTier(name='Basic', monthly_price=5.0, yearly_price=50.0, links_unlimited=True, custom_colors_unlimited=True, advanced_styles_unlimited=True, code_formats_unlimited=True, logo_embedding_unlimited=True, analytics_unlimited=True, custom_slugs_unlimited=True, full_palette=False, colour_themes_limit=3),
+                SubscriptionTier(name='Pro', monthly_price=10.0, yearly_price=100.0, links_unlimited=True, custom_colors_unlimited=True, advanced_styles_unlimited=True, code_formats_unlimited=True, logo_embedding_unlimited=True, analytics_unlimited=True, custom_slugs_unlimited=True, full_palette=True, colour_themes_unlimited=True),
             ])
             db.session.commit()
 
