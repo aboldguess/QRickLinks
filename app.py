@@ -64,6 +64,8 @@ class User(UserMixin, db.Model):
     advanced_styles_used = db.Column(db.Integer, default=0)
     logo_embedding_used = db.Column(db.Integer, default=0)
     analytics_used = db.Column(db.Integer, default=0)
+    # Count how many links the user created this month
+    links_created = db.Column(db.Integer, default=0)
     # Track how many extra premium actions a free user may perform
     freebies_remaining = db.Column(db.Integer, default=FREEBIES_PER_MONTH)
     # Date when the freebies counter resets for the next period
@@ -144,6 +146,8 @@ class Setting(db.Model):
     """Stores global application settings."""
     id = db.Column(db.Integer, primary_key=True)
     base_url = db.Column(db.String(512), default='http://localhost:5000')
+    # Monthly limit for how many links free users can create
+    links_limit = db.Column(db.Integer, default=20)
     custom_colors_limit = db.Column(db.Integer, default=5)
     advanced_styles_limit = db.Column(db.Integer, default=5)
     logo_embedding_limit = db.Column(db.Integer, default=1)
@@ -169,6 +173,9 @@ class SubscriptionTier(db.Model):
     # Cost of the subscription when billed yearly
     yearly_price = db.Column(db.Float, default=0.0)
     highlight_text = db.Column(db.String(100))
+    # Monthly link creation quota per tier
+    links_limit = db.Column(db.Integer)
+    links_unlimited = db.Column(db.Boolean, default=False)
     custom_colors_limit = db.Column(db.Integer)
     custom_colors_unlimited = db.Column(db.Boolean, default=False)
     advanced_styles_limit = db.Column(db.Integer)
@@ -373,6 +380,7 @@ def get_settings() -> Setting:
 
 # Map premium features to their Setting quota and User usage fields
 FEATURE_LIMIT_FIELDS = {
+    'links': ('links_limit', 'links_created'),
     'custom_colors': ('custom_colors_limit', 'custom_colors_used'),
     'advanced_styles': ('advanced_styles_limit', 'advanced_styles_used'),
     'logo_embedding': ('logo_embedding_limit', 'logo_embedding_used'),
@@ -389,6 +397,8 @@ def reset_usage_if_needed(user: User) -> None:
         user.advanced_styles_used = 0
         user.logo_embedding_used = 0
         user.analytics_used = 0
+        # Reset the monthly link creation count
+        user.links_created = 0
         db.session.commit()
 
     # Freebies reset independently of the monthly counters. When the stored
@@ -496,7 +506,7 @@ def pricing():
         .order_by(SubscriptionTier.id)
         .all()
     )
-    features = ['custom_colors', 'advanced_styles', 'logo_embedding', 'analytics']
+    features = ['links', 'custom_colors', 'advanced_styles', 'logo_embedding', 'analytics']
     # Pass the built-in ``getattr`` so Jinja can dynamically access
     # tier limits/unlimited flags in the template.  Without this the
     # templates raise an UndefinedError for ``getattr``.
@@ -572,6 +582,7 @@ def admin_settings():
     settings = get_settings()
     if request.method == 'POST':
         settings.base_url = request.form['base_url']
+        settings.links_limit = int(request.form['links_limit'])
         settings.custom_colors_limit = int(request.form['custom_colors_limit'])
         settings.advanced_styles_limit = int(request.form['advanced_styles_limit'])
         settings.logo_embedding_limit = int(request.form['logo_embedding_limit'])
@@ -610,7 +621,7 @@ def admin_users():
 @admin_required
 def admin_tiers():
     """Create and edit subscription tiers."""
-    features = ['custom_colors', 'advanced_styles', 'logo_embedding', 'analytics']
+    features = ['links', 'custom_colors', 'advanced_styles', 'logo_embedding', 'analytics']
     tiers = SubscriptionTier.query.order_by(SubscriptionTier.id).all()
     if request.method == 'POST':
         new_name = request.form.get('new_tier_name')
@@ -674,6 +685,10 @@ def create_link():
     """Create a shortened link and corresponding QR code."""
     # Normalise the submitted URL so missing schemes default to https://
     original_url = normalize_url(request.form['original_url'])
+    # Enforce the monthly link creation limit for free users
+    if not check_feature_usage(current_user, 'links'):
+        flash('Link creation quota exceeded')
+        return redirect(url_for('index'))
     slug = generate_words()
     short_code = generate_short_code()
 
@@ -954,6 +969,7 @@ def initialize_database() -> None:
             'advanced_styles_used': 'INTEGER DEFAULT 0',
             'logo_embedding_used': 'INTEGER DEFAULT 0',
             'analytics_used': 'INTEGER DEFAULT 0',
+            'links_created': 'INTEGER DEFAULT 0',
             'freebies_remaining': f'INTEGER DEFAULT {FREEBIES_PER_MONTH}',
             'freebies_reset': 'DATETIME',
         }
@@ -971,6 +987,7 @@ def initialize_database() -> None:
             User.query.update({
                 User.freebies_remaining: FREEBIES_PER_MONTH,
                 User.freebies_reset: next_reset,
+                User.links_created: 0,
             })
             db.session.commit()
 
@@ -1050,6 +1067,7 @@ def initialize_database() -> None:
         # Settings table columns for paywall quotas
         setting_columns = [row[1] for row in db.session.execute(text("PRAGMA table_info(setting)")).fetchall()]
         setting_map = {
+            'links_limit': 'INTEGER DEFAULT 20',
             'custom_colors_limit': 'INTEGER DEFAULT 5',
             'advanced_styles_limit': 'INTEGER DEFAULT 5',
             'logo_embedding_limit': 'INTEGER DEFAULT 1',
@@ -1075,6 +1093,8 @@ def initialize_database() -> None:
         tier_map = {
             'monthly_price': 'FLOAT DEFAULT 0.0',
             'yearly_price': 'FLOAT DEFAULT 0.0',
+            'links_limit': 'INTEGER',
+            'links_unlimited': 'BOOLEAN DEFAULT 0',
         }
         added_tier_cols = False
         for column, ddl in tier_map.items():

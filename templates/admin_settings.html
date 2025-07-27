@@ -13,6 +13,10 @@
   </div>
   <h3 class="mt-4">Free Monthly Usage Limits</h3>
   <div class="mb-3">
+    <label for="links_limit" class="form-label">Links Created</label>
+    <input type="number" class="form-control" id="links_limit" name="links_limit" value="{{ settings.links_limit }}" min="0">
+  </div>
+  <div class="mb-3">
     <label for="custom_colors_limit" class="form-label">Custom Colours</label>
     <input type="number" class="form-control" id="custom_colors_limit" name="custom_colors_limit" value="{{ settings.custom_colors_limit }}" min="0">
   </div>
