@@ -144,6 +144,14 @@
             </select>
           </div>
           <div class="col-md-2">
+            <label for="barcode_type{{ link.id }}" class="form-label">Advanced</label>
+            <select id="barcode_type{{ link.id }}" name="barcode_type" class="form-select" {% if not can_styles %}disabled{% endif %}>
+              {% for val, label in barcode_types.items() %}
+              <option value="{{ val }}" {% if link.barcode_type == val %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-2">
             <label for="error_correction{{ link.id }}" class="form-label">Redundancy</label>
             <select id="error_correction{{ link.id }}" name="error_correction" class="form-select" {% if not can_styles %}disabled{% endif %}>
               <option value="L" {% if link.error_correction == 'L' %}selected{% endif %}>L</option>

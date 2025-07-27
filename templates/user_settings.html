@@ -47,6 +47,13 @@
       <option value="bars-vertical" {% if t.pattern=='bars-vertical' %}selected{% endif %}>Vertical Bars</option>
     </select>
   </div>
+  <div class="col-md-2">
+    <select name="barcode_type" class="form-select">
+      {% for val, label in barcode_types.items() %}
+      <option value="{{ val }}" {% if t.barcode_type==val %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
   <div class="col-md-1">
     <select name="error_correction" class="form-select">
       <option value="L" {% if t.error_correction=='L' %}selected{% endif %}>L</option>
@@ -109,6 +116,13 @@
       <option value="gapped">Gapped</option>
       <option value="bars-horizontal">Horizontal Bars</option>
       <option value="bars-vertical">Vertical Bars</option>
+    </select>
+  </div>
+  <div class="col-md-2">
+    <select name="barcode_type" class="form-select">
+      {% for val, label in barcode_types.items() %}
+      <option value="{{ val }}">{{ label }}</option>
+      {% endfor %}
     </select>
   </div>
   <div class="col-md-1">
