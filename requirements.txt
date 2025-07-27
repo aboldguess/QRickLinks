@@ -4,3 +4,5 @@ Flask-SQLAlchemy
 qrcode
 Pillow
 waitress
+Flask-Dance
+itsdangerous
