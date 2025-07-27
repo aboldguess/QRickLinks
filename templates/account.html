@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>My Account</h2>
+<div class="card mb-3">
+  <div class="card-body">
+    <h5 class="card-title">Subscription</h5>
+    {% if current_user.is_premium %}
+    <p class="card-text">You have an active <strong>Pro</strong> subscription.</p>
+    <p>Next renewal: {{ current_user.subscription_renewal.strftime('%Y-%m-%d') if current_user.subscription_renewal else 'N/A' }}</p>
+    <form method="post" action="{{ url_for('cancel_subscription') }}">
+      <button type="submit" class="btn btn-danger">Cancel Subscription</button>
+    </form>
+    {% else %}
+    <p class="card-text">You are currently on the free plan.</p>
+    <a class="btn btn-primary" href="{{ url_for('pricing') }}">Upgrade</a>
+    {% endif %}
+  </div>
+</div>
+<h3>Usage Quotas</h3>
+<table class="table table-bordered mb-4">
+  <thead><tr><th>Feature</th><th>Remaining</th></tr></thead>
+  <tbody>
+    {% for feat, remaining in quotas.items() %}
+    <tr><td>{{ feat.replace('_',' ').title() }}</td><td>{{ remaining }}</td></tr>
+    {% endfor %}
+    <tr><td>Freebies</td><td>{{ current_user.freebies_remaining }}</td></tr>
+  </tbody>
+</table>
+<h3>Billing Information</h3>
+<form method="post">
+  <div class="mb-3">
+    <label for="billing_name" class="form-label">Name on Card</label>
+    <input type="text" class="form-control" id="billing_name" name="billing_name" value="{{ current_user.billing_name or '' }}">
+  </div>
+  <div class="mb-3">
+    <label for="billing_card_last4" class="form-label">Card Last 4 Digits</label>
+    <input type="text" class="form-control" id="billing_card_last4" name="billing_card_last4" value="{{ current_user.billing_card_last4 or '' }}">
+  </div>
+  <div class="mb-3">
+    <label for="billing_expiry" class="form-label">Expiry (MM/YYYY)</label>
+    <input type="text" class="form-control" id="billing_expiry" name="billing_expiry" value="{{ current_user.billing_expiry or '' }}">
+  </div>
+  <button type="submit" class="btn btn-primary">Save Billing Info</button>
+</form>
+{% endblock %}

@@ -73,6 +73,12 @@ class User(UserMixin, db.Model):
         db.DateTime,
         default=lambda: (datetime.utcnow().replace(day=1) + timedelta(days=32)).replace(day=1),
     )
+    # Basic billing information for subscription management. This keeps the
+    # example self-contained and avoids integrating a real payment gateway.
+    billing_name = db.Column(db.String(120))
+    billing_card_last4 = db.Column(db.String(4))
+    billing_expiry = db.Column(db.String(7))  # Stored as MM/YYYY
+    subscription_renewal = db.Column(db.DateTime)
 
     def set_password(self, password: str) -> None:
         """Hash and store the user's password."""
@@ -546,12 +552,56 @@ def subscribe():
     return render_template('subscribe.html')
 
 
+@app.route('/account', methods=['GET', 'POST'])
+@login_required
+def account():
+    """Display subscription status, quotas and billing details."""
+    # Refresh monthly counters so quota calculations are correct
+    reset_usage_if_needed(current_user)
+    settings = get_settings()
+
+    # Build a mapping of feature -> remaining quota text
+    quotas: dict[str, str] = {}
+    for feat in FEATURE_LIMIT_FIELDS:
+        limit_field, used_field = FEATURE_LIMIT_FIELDS[feat]
+        if current_user.is_premium:
+            # Paid accounts have no limits
+            quotas[feat] = 'Unlimited'
+        else:
+            # Calculate how much of the free quota remains for this feature
+            limit = getattr(settings, limit_field)
+            used = getattr(current_user, used_field)
+            quotas[feat] = f"{max(limit - used, 0)} of {limit}"
+
+    # When the form is submitted update the stored billing details
+    if request.method == 'POST':
+        current_user.billing_name = request.form.get('billing_name')
+        current_user.billing_card_last4 = request.form.get('billing_card_last4')
+        current_user.billing_expiry = request.form.get('billing_expiry')
+        db.session.commit()
+        flash('Billing information updated')
+        return redirect(url_for('account'))
+
+    return render_template('account.html', quotas=quotas)
+
+
+@app.route('/cancel_subscription', methods=['POST'])
+@login_required
+def cancel_subscription():
+    """Downgrade the current user to the free plan."""
+    # Clear premium flag and any stored renewal date
+    current_user.is_premium = False
+    current_user.subscription_renewal = None
+    db.session.commit()
+    flash('Subscription cancelled')
+    return redirect(url_for('account'))
+
+
 @app.route('/settings')
 @login_required
 def user_settings():
-    """Display the user's subscription info and freebie balance."""
-    reset_usage_if_needed(current_user)
-    return render_template('user_settings.html')
+    """Legacy route that redirects to the account page."""
+    return redirect(url_for('account'))
 
 
 # ----------------------------
@@ -990,6 +1040,10 @@ def initialize_database() -> None:
             'links_created': 'INTEGER DEFAULT 0',
             'freebies_remaining': f'INTEGER DEFAULT {FREEBIES_PER_MONTH}',
             'freebies_reset': 'DATETIME',
+            'billing_name': 'VARCHAR(120)',
+            'billing_card_last4': 'VARCHAR(4)',
+            'billing_expiry': 'VARCHAR(7)',
+            'subscription_renewal': 'DATETIME',
         }
         added_user_cols = False
         for column, ddl in user_map.items():
