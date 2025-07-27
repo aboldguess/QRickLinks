@@ -42,10 +42,11 @@
   #}
   const ips = {{ visit_map.keys()|map(attribute=0)|list|tojson }};
   ips.forEach(ip => {
-    fetch('http://ip-api.com/json/' + ip)
+    // Use HTTPS to avoid mixed content warnings when the site runs over HTTPS
+    fetch('https://ip-api.com/json/' + ip)
       .then(r => r.json())
       .then(d => {
-        if(d.status === 'success'){
+        if (d.status === 'success') {
           L.marker([d.lat, d.lon]).addTo(map).bindPopup(ip);
         }
       });
