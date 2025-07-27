@@ -1347,6 +1347,38 @@ def initialize_database() -> None:
         db.create_all()
 
         # ------------------------------------------------------------------
+        # Ensure subscription_tier table has all expected columns
+        # ------------------------------------------------------------------
+        # Querying SubscriptionTier before migration can fail if new columns
+        # were added in later versions.  Check for missing fields and add them
+        # prior to any queries so existing installations continue to work.
+        tier_columns = [
+            row[1] for row in db.session.execute(
+                text("PRAGMA table_info(subscription_tier)")
+            ).fetchall()
+        ]
+        tier_map = {
+            'monthly_price': 'FLOAT DEFAULT 0.0',
+            'yearly_price': 'FLOAT DEFAULT 0.0',
+            'links_limit': 'INTEGER',
+            'links_unlimited': 'BOOLEAN DEFAULT 0',
+            'custom_slugs_limit': 'INTEGER',
+            'custom_slugs_unlimited': 'BOOLEAN DEFAULT 0',
+            'full_palette': 'BOOLEAN DEFAULT 0',
+            'colour_themes_limit': 'INTEGER',
+            'colour_themes_unlimited': 'BOOLEAN DEFAULT 0',
+        }
+        added_tier_cols = False
+        for column, ddl in tier_map.items():
+            if column not in tier_columns:
+                db.session.execute(
+                    text(f"ALTER TABLE subscription_tier ADD COLUMN {column} {ddl}")
+                )
+                added_tier_cols = True
+        if added_tier_cols:
+            db.session.commit()
+
+        # ------------------------------------------------------------------
         # Schema migration helper
         # ------------------------------------------------------------------
         # When the application is updated, the existing SQLite database may
@@ -1504,35 +1536,7 @@ def initialize_database() -> None:
         if added_setting_cols:
             db.session.commit()
 
-        # Subscription tier pricing columns for monthly and yearly costs. Older
-        # databases only store a single price so add the new fields if needed.
-        tier_columns = [
-            row[1]
-            for row in db.session.execute(
-                text("PRAGMA table_info(subscription_tier)")
-            ).fetchall()
-        ]
-        tier_map = {
-            'monthly_price': 'FLOAT DEFAULT 0.0',
-            'yearly_price': 'FLOAT DEFAULT 0.0',
-            'links_limit': 'INTEGER',
-            'links_unlimited': 'BOOLEAN DEFAULT 0',
-            'custom_slugs_limit': 'INTEGER',
-            'custom_slugs_unlimited': 'BOOLEAN DEFAULT 0',
-            'full_palette': 'BOOLEAN DEFAULT 0',
-            'colour_themes_limit': 'INTEGER',
-            'colour_themes_unlimited': 'BOOLEAN DEFAULT 0',
-        }
-        added_tier_cols = False
-        for column, ddl in tier_map.items():
-            if column not in tier_columns:
-                db.session.execute(
-                    text(f"ALTER TABLE subscription_tier ADD COLUMN {column} {ddl}")
-                )
-                added_tier_cols = True
 
-        if added_tier_cols:
-            db.session.commit()
 
         # Ensure a settings row is present
         get_settings()
