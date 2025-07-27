@@ -22,6 +22,8 @@ from sqlalchemy import func, text  # text() allows execution of raw SQL strings
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
+# Flask-WTF provides optional CSRF protection for form submissions
+from flask_wtf import CSRFProtect
 import qrcode
 from qrcode.image.styledpil import StyledPilImage
 from qrcode.image.styles.moduledrawers import (
@@ -46,6 +48,8 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
+# Enable CSRF protection for all form submissions
+csrf = CSRFProtect(app)
 
 # Serializer used for generating signed tokens (e.g. password resets)
 serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])

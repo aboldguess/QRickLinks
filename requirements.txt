@@ -6,3 +6,4 @@ Pillow
 waitress
 Flask-Dance
 itsdangerous
+Flask-WTF

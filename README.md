@@ -21,7 +21,7 @@ QRickLinks is a simple URL shortening service that generates short, memorable sl
 
 ## Setup
 
-1. Install dependencies:
+1. Install dependencies (now including `Flask-WTF` for CSRF protection):
    ```bash
    pip install -r requirements.txt
    ```
