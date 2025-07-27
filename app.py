@@ -75,6 +75,8 @@ class User(UserMixin, db.Model):
     google_id = db.Column(db.String(255), unique=True)
     password_hash = db.Column(db.String(128), nullable=False)
     links = db.relationship('Link', backref='owner', lazy=True)
+    # User defined colour themes for quick QR customisation
+    colour_themes = db.relationship('ColourTheme', backref='owner', lazy=True)
     # Flag to determine if the user has administrative privileges
     is_admin = db.Column(db.Boolean, default=False)
     # Subscription flag and usage counters for premium features
@@ -175,6 +177,20 @@ class Visit(db.Model):
     referrer = db.Column(db.String(2048))
 
 
+class ColourTheme(db.Model):
+    """User defined colour schemes for quick QR customisation."""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    name = db.Column(db.String(50), nullable=False)
+    fill_color = db.Column(db.String(20), default='#000000')
+    back_color = db.Column(db.String(20), default='#FFFFFF')
+    box_size = db.Column(db.Integer, default=10)
+    border = db.Column(db.Integer, default=4)
+    pattern = db.Column(db.String(10), default='square')
+    error_correction = db.Column(db.String(1), default='M')
+    is_default = db.Column(db.Boolean, default=False)
+
+
 class Setting(db.Model):
     """Stores global application settings."""
     id = db.Column(db.Integer, primary_key=True)
@@ -222,6 +238,10 @@ class SubscriptionTier(db.Model):
     # Monthly quota for user-specified slugs
     custom_slugs_limit = db.Column(db.Integer)
     custom_slugs_unlimited = db.Column(db.Boolean, default=False)
+    # True allows unlimited colour selection, False restricts to a 16 colour palette
+    full_palette = db.Column(db.Boolean, default=False)
+    colour_themes_limit = db.Column(db.Integer)
+    colour_themes_unlimited = db.Column(db.Boolean, default=False)
     archived = db.Column(db.Boolean, default=False)
 
 @login_manager.user_loader
@@ -240,6 +260,14 @@ ADJECTIVES = [
 NOUNS = [
     'tiger', 'river', 'mountain', 'sky', 'ocean', 'forest', 'panda', 'lion',
     'eagle', 'whale', 'wolf', 'falcon', 'shark', 'koala', 'leopard', 'otter'
+]
+
+# Default 16-colour palette used for lower subscription tiers
+LIMITED_PALETTE = [
+    '#000000', '#FFFFFF', '#FF0000', '#00FF00',
+    '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF',
+    '#800000', '#808000', '#008000', '#800080',
+    '#008080', '#000080', '#C0C0C0', '#808080'
 ]
 
 
@@ -489,6 +517,16 @@ def check_feature_usage(user: User, feature: str) -> bool:
     return True
 
 
+def can_create_theme(user: User) -> bool:
+    """Return True if the user may create additional colour themes."""
+    tier = user.tier or SubscriptionTier.query.filter_by(name='Free').first()
+    if tier.colour_themes_unlimited:
+        return True
+    limit = tier.colour_themes_limit or 0
+    current = ColourTheme.query.filter_by(user_id=user.id).count()
+    return current < limit
+
+
 def admin_required(f):
     """Decorator to restrict routes to admin users only."""
     @wraps(f)
@@ -512,7 +550,21 @@ def index():
     # Determine if the user still has link creation quota available so the
     # template can disable the form when exhausted.
     can_create = can_use_feature(current_user, 'links')
-    return render_template('dashboard.html', links=links, can_create=can_create)
+    tier = current_user.tier or SubscriptionTier.query.filter_by(name='Free').first()
+    palette_full = tier.full_palette
+    can_colors = can_use_feature(current_user, 'custom_colors')
+    can_styles = can_use_feature(current_user, 'advanced_styles')
+    themes = ColourTheme.query.filter_by(user_id=current_user.id).all()
+    return render_template(
+        'dashboard.html',
+        links=links,
+        can_create=can_create,
+        palette_full=palette_full,
+        can_colors=can_colors,
+        can_styles=can_styles,
+        themes=themes,
+        limited_palette=LIMITED_PALETTE,
+    )
 
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -657,6 +709,7 @@ def pricing():
         'logo_embedding',
         'analytics',
         'custom_slugs',
+        'colour_themes',
     ]
     # Pass the built-in ``getattr`` so Jinja can dynamically access
     # tier limits/unlimited flags in the template.  Without this the
@@ -743,11 +796,72 @@ def cancel_subscription():
     return redirect(url_for('account'))
 
 
-@app.route('/settings')
+@app.route('/settings', methods=['GET', 'POST'])
 @login_required
 def user_settings():
-    """Legacy route that redirects to the account page."""
-    return redirect(url_for('account'))
+    """Manage user defined colour themes."""
+    themes = ColourTheme.query.filter_by(user_id=current_user.id).all()
+    tier = current_user.tier or SubscriptionTier.query.filter_by(name='Free').first()
+    palette_full = tier.full_palette
+    can_add = can_create_theme(current_user)
+
+    if request.method == 'POST':
+        if 'create_theme' in request.form:
+            if not can_add:
+                flash('Theme quota exceeded')
+                return redirect(url_for('user_settings'))
+            theme = ColourTheme(
+                user_id=current_user.id,
+                name=request.form['name'],
+                fill_color=request.form['fill_color'],
+                back_color=request.form['back_color'],
+                box_size=int(request.form['box_size']),
+                border=int(request.form['border']),
+                pattern=request.form['pattern'],
+                error_correction=request.form['error_correction'],
+                is_default='is_default' in request.form,
+            )
+            if theme.is_default:
+                ColourTheme.query.filter_by(user_id=current_user.id).update({ColourTheme.is_default: False})
+            db.session.add(theme)
+            db.session.commit()
+            flash('Theme saved')
+            return redirect(url_for('user_settings'))
+        if 'update_theme' in request.form:
+            theme = ColourTheme.query.get_or_404(int(request.form['theme_id']))
+            if theme.user_id != current_user.id:
+                abort(403)
+            theme.name = request.form['name']
+            theme.fill_color = request.form['fill_color']
+            theme.back_color = request.form['back_color']
+            theme.box_size = int(request.form['box_size'])
+            theme.border = int(request.form['border'])
+            theme.pattern = request.form['pattern']
+            theme.error_correction = request.form['error_correction']
+            if 'is_default' in request.form:
+                ColourTheme.query.filter_by(user_id=current_user.id).update({ColourTheme.is_default: False})
+                theme.is_default = True
+            else:
+                theme.is_default = False
+            db.session.commit()
+            flash('Theme updated')
+            return redirect(url_for('user_settings'))
+        if 'delete_theme' in request.form:
+            theme = ColourTheme.query.get_or_404(int(request.form['delete_theme']))
+            if theme.user_id != current_user.id:
+                abort(403)
+            db.session.delete(theme)
+            db.session.commit()
+            flash('Theme deleted')
+            return redirect(url_for('user_settings'))
+
+    return render_template(
+        'user_settings.html',
+        themes=themes,
+        can_add=can_add,
+        palette_full=palette_full,
+        limited_palette=LIMITED_PALETTE,
+    )
 
 
 # ----------------------------
@@ -863,6 +977,8 @@ def admin_tiers():
                 request.form.get(f'{tier.id}_yearly_price', tier.yearly_price or 0)
             )
             tier.highlight_text = request.form.get(f'{tier.id}_highlight_text', '')
+            palette_val = request.form.get(f'{tier.id}_palette', 'limited')
+            tier.full_palette = palette_val == 'full'
             for feat in features:
                 limit_val = request.form.get(f'{tier.id}_{feat}_limit')
                 unlimited = request.form.get(f'{tier.id}_{feat}_unlimited')
@@ -1074,32 +1190,49 @@ def customize_link(link_id: int):
     if link.owner != current_user:
         abort(403)
 
+    theme_id = request.form.get('theme_id')
+    if theme_id:
+        theme = ColourTheme.query.get(int(theme_id))
+        if not theme or theme.user_id != current_user.id:
+            theme = None
+    else:
+        theme = None
+
+    if theme:
+        fill_color = theme.fill_color
+        back_color = theme.back_color
+        box_size = theme.box_size
+        border = theme.border
+        pattern = theme.pattern
+        error_correction = theme.error_correction
+    else:
+        fill_color = request.form.get("fill_color", "#000000")
+        back_color = request.form.get("back_color", "#FFFFFF")
+        box_size = int(request.form.get("box_size", 10))
+        border = int(request.form.get("border", 4))
+        pattern = request.form.get("pattern", "square")
+        error_correction = request.form.get("error_correction", "M")
+
     # Perform quota checks for the various customisation options the user is
-    # attempting to modify. Each option corresponds to a premium feature tier.
-    # Only consume quota when the submitted value differs from what is already
-    # stored for the link so repeated saves do not double count.
+    # attempting to modify. Only consume quota when the submitted value differs
+    # from what is already stored for the link so repeated saves do not double count.
     if (
-        link.fill_color != request.form.get('fill_color', link.fill_color) or
-        link.back_color != request.form.get('back_color', link.back_color)
+        link.fill_color != fill_color or link.back_color != back_color
     ) and not check_feature_usage(current_user, 'custom_colors'):
         flash('Custom colours quota exceeded')
         return redirect(url_for('index'))
     if (
-        link.box_size != int(request.form.get('box_size', link.box_size)) or
-        link.border != int(request.form.get('border', link.border)) or
-        link.pattern != request.form.get('pattern', link.pattern) or
-        link.error_correction != request.form.get('error_correction', link.error_correction)
+        link.box_size != box_size or link.border != border or
+        link.pattern != pattern or link.error_correction != error_correction
     ) and not check_feature_usage(current_user, 'advanced_styles'):
         flash('Advanced styling quota exceeded')
         return redirect(url_for('index'))
 
-    # Extract customisation parameters from the submitted form
-    fill_color = request.form.get("fill_color", "#000000")
-    back_color = request.form.get("back_color", "#FFFFFF")
-    box_size = int(request.form.get("box_size", 10))
-    border = int(request.form.get("border", 4))
-    pattern = request.form.get("pattern", "square")
-    error_correction = request.form.get("error_correction", "M")
+    tier = current_user.tier or SubscriptionTier.query.filter_by(name='Free').first()
+    if not tier.full_palette:
+        if fill_color not in LIMITED_PALETTE or back_color not in LIMITED_PALETTE:
+            flash('Palette limited to 16 colours')
+            return redirect(url_for('index'))
     logo_file = request.files.get("logo")
     logo_filename = None
 
@@ -1383,6 +1516,9 @@ def initialize_database() -> None:
             'links_unlimited': 'BOOLEAN DEFAULT 0',
             'custom_slugs_limit': 'INTEGER',
             'custom_slugs_unlimited': 'BOOLEAN DEFAULT 0',
+            'full_palette': 'BOOLEAN DEFAULT 0',
+            'colour_themes_limit': 'INTEGER',
+            'colour_themes_unlimited': 'BOOLEAN DEFAULT 0',
         }
         added_tier_cols = False
         for column, ddl in tier_map.items():
@@ -1419,9 +1555,11 @@ def initialize_database() -> None:
                     logo_embedding_limit=free_settings.logo_embedding_limit,
                     analytics_limit=free_settings.analytics_limit,
                     custom_slugs_limit=free_settings.custom_slugs_limit,
+                    full_palette=False,
+                    colour_themes_limit=1,
                 ),
-                SubscriptionTier(name='Basic', monthly_price=5.0, yearly_price=50.0, links_unlimited=True, custom_colors_unlimited=True, advanced_styles_unlimited=True, logo_embedding_unlimited=True, analytics_unlimited=True, custom_slugs_unlimited=True),
-                SubscriptionTier(name='Pro', monthly_price=10.0, yearly_price=100.0, links_unlimited=True, custom_colors_unlimited=True, advanced_styles_unlimited=True, logo_embedding_unlimited=True, analytics_unlimited=True, custom_slugs_unlimited=True),
+                SubscriptionTier(name='Basic', monthly_price=5.0, yearly_price=50.0, links_unlimited=True, custom_colors_unlimited=True, advanced_styles_unlimited=True, logo_embedding_unlimited=True, analytics_unlimited=True, custom_slugs_unlimited=True, full_palette=False, colour_themes_limit=3),
+                SubscriptionTier(name='Pro', monthly_price=10.0, yearly_price=100.0, links_unlimited=True, custom_colors_unlimited=True, advanced_styles_unlimited=True, logo_embedding_unlimited=True, analytics_unlimited=True, custom_slugs_unlimited=True, full_palette=True, colour_themes_unlimited=True),
             ])
             db.session.commit()
 

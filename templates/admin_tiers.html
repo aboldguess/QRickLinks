@@ -39,6 +39,22 @@
         {% endfor %}
         <td></td>
       </tr>
+      <tr>
+        <th>Colour Palette</th>
+        {% for tier in tiers %}
+        <td>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="{{ tier.id }}_palette" value="limited" {% if not tier.full_palette %}checked{% endif %}>
+            <label class="form-check-label">16 colours</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="{{ tier.id }}_palette" value="full" {% if tier.full_palette %}checked{% endif %}>
+            <label class="form-check-label">Full colour</label>
+          </div>
+        </td>
+        {% endfor %}
+        <td></td>
+      </tr>
       {% for feat in features %}
       <tr>
         <th>{{ feat.replace('_',' ').title() }}</th>

@@ -28,6 +28,12 @@
       <td class="price-cell" data-monthly="{{ tier.monthly_price }}" data-yearly="{{ tier.yearly_price }}"></td>
       {% endfor %}
     </tr>
+    <tr>
+      <th>Colour Palette</th>
+      {% for tier in tiers %}
+      <td>{{ 'Full colour' if tier.full_palette else '16 colours' }}</td>
+      {% endfor %}
+    </tr>
     {% for feat in features %}
     <tr>
       <th>{{ feat.replace('_',' ').title() }}</th>
