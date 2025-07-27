@@ -31,14 +31,15 @@ QRickLinks is a simple URL shortening service that generates short, memorable sl
 
 ### Raspberry Pi Hosting
 
-Use the provided `run_rpi.py` script to host the application on a Raspberry Pi.
-It binds to all network interfaces and accepts an optional port argument:
+Use the provided `rpi_qrlinks.py` script to host the application on a Raspberry Pi.
+It binds to all network interfaces and accepts an optional port argument and a
+`--production` flag for running with the Waitress WSGI server:
 
 ```bash
-python run_rpi.py 8080  # runs the server on port 8080
+python rpi_qrlinks.py 8080 --production  # runs the server on port 8080
 ```
 
-Omit the argument to use the default port `5000`.
+Omit the port argument to use `5000` and drop the flag to use Flask's development server.
 
 ### Windows Quick Start
 
