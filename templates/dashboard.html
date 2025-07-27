@@ -1,11 +1,5 @@
 {% extends 'base.html' %}
 {% block content %}
-{#
-  Removed the freebies reminder from the top of the dashboard. The
-  user request was to hide the "Freebies remaining" banner. Existing
-  template logic remains unchanged except for the omission of this
-  notice.
-#}
 <h2>Create new link</h2>
 <form method="post" action="{{ url_for('create_link') }}">
   <!-- Hidden CSRF field prevents form tampering -->

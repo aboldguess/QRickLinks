@@ -62,9 +62,6 @@ google_bp = make_google_blueprint(
 )
 app.register_blueprint(google_bp, url_prefix='/login')
 
-# Number of extra premium actions granted to new/free accounts each month
-FREEBIES_PER_MONTH = 3
-
 # ----------------------------
 # Database Models
 # ----------------------------
@@ -93,13 +90,6 @@ class User(UserMixin, db.Model):
     custom_slugs_used = db.Column(db.Integer, default=0)
     # Count how many links the user created this month
     links_created = db.Column(db.Integer, default=0)
-    # Track how many extra premium actions a free user may perform
-    freebies_remaining = db.Column(db.Integer, default=FREEBIES_PER_MONTH)
-    # Date when the freebies counter resets for the next period
-    freebies_reset = db.Column(
-        db.DateTime,
-        default=lambda: (datetime.utcnow().replace(day=1) + timedelta(days=32)).replace(day=1),
-    )
     # Basic billing information for subscription management. This keeps the
     # example self-contained and avoids integrating a real payment gateway.
     billing_name = db.Column(db.String(120))
@@ -478,14 +468,6 @@ def reset_usage_if_needed(user: User) -> None:
         user.links_created = 0
         db.session.commit()
 
-    # Freebies reset independently of the monthly counters. When the stored
-    # reset date is reached or passed, refresh the freebies allotment and set
-    # the next renewal for the first of the following month.
-    if user.freebies_reset and datetime.utcnow() >= user.freebies_reset:
-        user.freebies_remaining = FREEBIES_PER_MONTH
-        next_reset = user.freebies_reset.replace(day=1) + timedelta(days=32)
-        user.freebies_reset = next_reset.replace(day=1)
-        db.session.commit()
 
 
 def can_use_feature(user: User, feature: str) -> bool:
@@ -497,9 +479,7 @@ def can_use_feature(user: User, feature: str) -> bool:
     limit = getattr(tier, f'{feature}_limit') or 0
     used_field = FEATURE_LIMIT_FIELDS[feature][1]
     used = getattr(user, used_field)
-    if used < limit:
-        return True
-    return user.freebies_remaining > 0
+    return used < limit
 
 
 def check_feature_usage(user: User, feature: str) -> bool:
@@ -510,12 +490,8 @@ def check_feature_usage(user: User, feature: str) -> bool:
     tier = user.tier or SubscriptionTier.query.filter_by(name='Free').first()
     if not getattr(tier, f'{feature}_unlimited'):
         used_field = FEATURE_LIMIT_FIELDS[feature][1]
-        limit = getattr(tier, f'{feature}_limit') or 0
         used = getattr(user, used_field)
-        if used >= limit and user.freebies_remaining > 0:
-            user.freebies_remaining -= 1
-        else:
-            setattr(user, used_field, used + 1)
+        setattr(user, used_field, used + 1)
     db.session.commit()
     return True
 
@@ -547,7 +523,7 @@ def admin_required(f):
 @login_required
 def index():
     """Show dashboard with user's links."""
-    # Refresh monthly usage counters so the freebies display is accurate
+    # Refresh monthly usage counters so quotas are up to date
     reset_usage_if_needed(current_user)
     links = Link.query.filter_by(owner=current_user).all()
     # Determine if the user still has link creation quota available so the
@@ -1399,8 +1375,6 @@ def initialize_database() -> None:
             'analytics_used': 'INTEGER DEFAULT 0',
             'custom_slugs_used': 'INTEGER DEFAULT 0',
             'links_created': 'INTEGER DEFAULT 0',
-            'freebies_remaining': f'INTEGER DEFAULT {FREEBIES_PER_MONTH}',
-            'freebies_reset': 'DATETIME',
             'billing_name': 'VARCHAR(120)',
             'billing_card_last4': 'VARCHAR(4)',
             'billing_expiry': 'VARCHAR(7)',
@@ -1417,12 +1391,8 @@ def initialize_database() -> None:
 
         if added_user_cols:
             db.session.commit()
-            # Initialise freebies for existing users so everyone starts
-            # with a full allocation once the new columns are added.
-            next_reset = (datetime.utcnow().replace(day=1) + timedelta(days=32)).replace(day=1)
+            # Initialise counters for existing users when new columns are added.
             User.query.update({
-                User.freebies_remaining: FREEBIES_PER_MONTH,
-                User.freebies_reset: next_reset,
                 User.links_created: 0,
                 User.custom_slugs_used: 0,
             })
