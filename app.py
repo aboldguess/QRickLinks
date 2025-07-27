@@ -35,7 +35,9 @@ from PIL import ImageColor
 
 # Initialize Flask app and database
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'change-this-secret-key'
+# Use a secret key from the environment if available so deployments can set
+# their own value. A hard-coded default keeps development setups simple.
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'change-this-secret-key')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///qricklinks.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
