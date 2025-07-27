@@ -1,92 +1,72 @@
 # QRickLinks
 
-QRickLinks is a simple URL shortening service that generates short, memorable slugs in the form `adjective.adjective.noun` as well as a compact base&nbsp;62 code. Each link therefore has two ways to access it and a corresponding QR code. Users can register, log in, create short links, and view statistics about link visits. The QR code generator supports extensive customisation such as colours, size, pattern style, error correction level and even embedding a central logo.
+QRickLinks is a Flask application that combines a traditional URL shortener with a fully customisable QR code generator.  Each link receives both a human friendly word slug and a compact base62 code so it can be shared as text or embedded in a QR image.  Users can manage their links, personalise the generated codes and review basic statistics from a simple dashboard.
 
 ## Features
 
-- User registration and authentication
-- Short URL generation with random word combinations
-- Base62 short codes generated alongside word slugs
-- Automatic QR code creation for each short URL (the QR code embeds the
-  compact base62 link)
-- QR codes can be customised after creation from the dashboard
-- URLs missing a scheme are automatically prefixed with `https://`
-- Dashboard listing a user's links and visit counts
-- Thumbnail preview of each destination page using the thum.io service
-- Basic visit tracking (IP address and referrer)
-- Admin dashboard with site statistics and settings
-- Subscription paywall for advanced QR code features
-- Personal "My Account" page to manage quotas, billing info and subscription
-- Custom slugs limited by subscription tier
+- User registration and email/password or Google OAuth login
+- Random `adjective.adjective.noun` slug generation alongside a base62 short code
+- Automatic QR code creation for every link with extensive customisation options
+- Dashboard showing existing links, usage quotas and visit counts
+- Basic analytics that record IP address, MAC address (when available) and referrer
+- Thumbnail previews of destination pages via the thum.io service
+- Password reset flow that prints reset links to the console
+- Admin interface for managing users, site settings and subscription tiers
+- Subscription system with free and paid tiers, including monthly "freebie" allowances
 
-## Setup
+## Installation
 
-1. Install dependencies:
+1. Install the Python dependencies:
    ```bash
    pip install -r requirements.txt
    ```
-   The project now depends on **Flask-WTF** to provide CSRF protection,
-   so ensure it is installed when setting up the environment.
-2. Optionally set a custom `SECRET_KEY` used to sign session cookies:
+2. (Optional) export a `SECRET_KEY` so session cookies are signed with your own value:
    ```bash
-   export SECRET_KEY="your-secret-string"
+   export SECRET_KEY="your-secret-key"
    ```
-3. Run the application:
+3. (Optional) configure Google OAuth by setting `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` in the environment.
+4. Run the development server:
    ```bash
    python app.py
    ```
-4. Visit `http://localhost:5000` in your browser.
+   The database is created automatically on first run and minimal default data is inserted.
+5. Visit `http://localhost:5000` to register an account and start creating links.
 
-### Raspberry Pi Hosting
+### Alternative entry points
 
-Use the provided `rpi_qrlinks.py` script to host the application on a Raspberry Pi.
-It binds to all network interfaces and accepts an optional port argument and a
-`--production` flag for running with the Waitress WSGI server:
+- **Raspberry&nbsp;Pi** – `rpi_qrlinks.py` binds to all interfaces and accepts a port argument plus an optional `--production` flag to run with the Waitress WSGI server:
+  ```bash
+  python rpi_qrlinks.py 8080 --production
+  ```
+- **Windows** – `run_windows.py` installs requirements, prepares the database and then starts the development server. Provide a port number to override the default `5000`:
+  ```bash
+  python run_windows.py 5001
+  ```
 
-```bash
-python rpi_qrlinks.py 8080 --production  # runs the server on port 8080
-```
+### Administrator account
 
-Omit the port argument to use `5000` and drop the flag to use Flask's development server.
+The initial database seed creates an administrator user so you can immediately access the admin dashboard:
 
-### Windows Quick Start
+* Username: `philadmin`
+* Password: `Admin12345`
 
-On Windows you can run `run_windows.py` which installs dependencies, prepares
-the database and starts the server. An optional port argument overrides the
-default:
+Log in at `http://localhost:5000/admin/login` to adjust global settings such as the base URL used when generating short links.
 
-```bash
-python run_windows.py 5001  # starts the app on port 5001
-```
+## How it works
 
-Omit the argument to use port `5000`.
+`initialize_database()` performs lightweight migrations at start-up so upgrading does not require manual SQL scripts.  New columns are added on the fly and default subscription tiers are inserted if none exist.
 
-### Admin Access
+When a user creates a link, two identifiers are generated:
 
-An administrator account is created automatically with the following credentials:
+1. A word slug using randomly chosen adjectives and nouns.
+2. A six character base62 code for use in QR codes.
 
-* **Username:** `philadmin`
-* **Password:** `Admin12345`
+Both resolve to the same destination URL.  The QR code image is generated with `qrcode` and stored in `static/qr/`.  Customisation options (colours, module style, error correction level and optional logo) are persisted so the code can be recreated later or downloaded as SVG.
 
-Log in at `http://localhost:5000/admin/login` to view site statistics and manage settings such as the base URL used for generated links.
+Every visit increments the counter on the associated link and records basic metadata.  The application attempts to resolve the visitor's MAC address from the ARP cache when running on a local network.
 
-### Monetisation
-
-Advanced features such as custom colours, advanced styling, logo embedding and analytics views are limited for free users. The monthly quotas for each feature can be configured from the admin settings page. Users marked as premium are not restricted by these limits.
-
-Each account also receives a small number of "freebies" every month which allow
-going over the free quotas. The remaining count and renewal date are displayed
-on the dashboard so users know when their allowance refreshes. Upgrading to the
-Pro plan removes all restrictions.
-
-Visit the new `/pricing` page for plan details and a simple upgrade form. The
-current early access program grants the Pro subscription for free but records
-the opt-in so payment processing can be integrated later.
+Free accounts have monthly quotas for link creation and advanced QR features.  These limits refresh automatically and a small number of "freebies" allow occasional usage beyond the free tier.  Paid tiers remove or increase these limits and can be managed from the admin interface.
 
 ## Notes
 
-This project uses SQLite for simplicity and stores generated QR codes in `static/qr/`.
-The creation form now only asks for the long URL so the interface stays clutter‑free. After a link is created you can customise its QR code from a pull‑down menu next to the entry on your dashboard. Options include colours, module size, border width, pattern style, error correction level and an optional central logo.
-
-The *rounded* pattern now uses a radius ratio of `1` so every module is drawn as
-a circle, providing a clear visual distinction from the default square style.
+The project stores all data in a local SQLite database for simplicity.  QR images and uploaded logos are saved under `static/qr/` and `static/logos/` respectively.  The default configuration is suitable for local development or small deployments.  For production use consider placing the database and uploaded files in persistent locations and serving the app with a dedicated WSGI server.
