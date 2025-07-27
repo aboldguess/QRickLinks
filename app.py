@@ -783,7 +783,11 @@ def create_link():
     if not check_feature_usage(current_user, 'links'):
         flash('Link creation quota exceeded')
         return redirect(url_for('index'))
-    slug = generate_words()
+    # Use the submitted slug when provided. Falling back to a randomly
+    # generated "adjective.adjective.noun" slug keeps behaviour unchanged
+    # for users who leave the slug field blank.
+    submitted_slug = request.form.get("slug", "").strip()
+    slug = submitted_slug or generate_words()
     short_code = generate_short_code()
 
     # Customisation options supplied by the user or using defaults.
@@ -818,7 +822,8 @@ def create_link():
         flash('Logo embedding quota exceeded')
         return redirect(url_for('index'))
 
-    # Ensure slugs and codes are unique; regenerate if a collision occurs
+    # Ensure slugs and codes are unique. If the requested slug already exists
+    # a new random slug is generated so link creation always succeeds.
     while Link.query.filter_by(slug=slug).first() is not None:
         slug = generate_words()
     while Link.query.filter_by(short_code=short_code).first() is not None:

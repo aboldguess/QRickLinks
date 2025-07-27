@@ -22,6 +22,14 @@
       colour so the entry box stands out against the surrounding form.
     -->
   </div>
+  <div class="mb-3">
+    <label for="slug" class="form-label">Slug</label>
+    <!--
+      Allow the user to specify a custom slug for their short URL. If left
+      blank the server will generate a random slug instead.
+    -->
+    <input type="text" class="form-control" id="slug" name="slug" placeholder="optional">
+  </div>
   {#
     The QR code customisation options previously available here have been
     removed to keep the form simple. After the link is created, these settings
