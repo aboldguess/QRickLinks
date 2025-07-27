@@ -3,6 +3,7 @@
 <h2>Confirm Subscription</h2>
 <p>Click confirm to upgrade your account to Pro. No payment is required at this time.</p>
 <form method="post">
+  {{ csrf_token() }}
   <button type="submit" class="btn btn-success">Confirm Upgrade</button>
 </form>
 {% endblock %}

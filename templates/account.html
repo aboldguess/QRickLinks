@@ -8,6 +8,7 @@
     <p class="card-text">You have an active <strong>{{ current_user.tier.name }}</strong> subscription.</p>
     <p>Next renewal: {{ current_user.subscription_renewal.strftime('%Y-%m-%d') if current_user.subscription_renewal else 'N/A' }}</p>
     <form method="post" action="{{ url_for('cancel_subscription') }}">
+      {{ csrf_token() }}
       <button type="submit" class="btn btn-danger">Cancel Subscription</button>
     </form>
     {% else %}
@@ -28,6 +29,7 @@
 </table>
 <h3>Billing Information</h3>
 <form method="post">
+  {{ csrf_token() }}
   <div class="mb-3">
     <label for="billing_name" class="form-label">Name on Card</label>
     <input type="text" class="form-control" id="billing_name" name="billing_name" value="{{ current_user.billing_name or '' }}">

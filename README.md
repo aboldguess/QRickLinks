@@ -25,6 +25,8 @@ QRickLinks is a simple URL shortening service that generates short, memorable sl
    ```bash
    pip install -r requirements.txt
    ```
+   The project now depends on **Flask-WTF** to provide CSRF protection,
+   so ensure it is installed when setting up the environment.
 2. Optionally set a custom `SECRET_KEY` used to sign session cookies:
    ```bash
    export SECRET_KEY="your-secret-string"
