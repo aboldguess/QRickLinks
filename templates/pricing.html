@@ -44,6 +44,14 @@
       <td class="total-cell" data-monthly="{{ tier.monthly_price }}" data-yearly="{{ tier.yearly_price }}"></td>
       {% endfor %}
     </tr>
+    <tr>
+      <th></th>
+      {% for tier in tiers %}
+      <td>
+        <a class="btn btn-success" href="{{ url_for('checkout', tier_id=tier.id) }}">Buy Now</a>
+      </td>
+      {% endfor %}
+    </tr>
   </tbody>
 </table>
 {% if current_user.is_authenticated and not current_user.is_premium %}
