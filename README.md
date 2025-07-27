@@ -24,13 +24,33 @@ QRickLinks is a Flask application that combines a traditional URL shortener with
    ```bash
    export SECRET_KEY="your-secret-key"
    ```
-3. (Optional) configure Google OAuth by setting `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` in the environment.
+3. (Optional) configure Google OAuth by setting `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` in the environment. See the detailed instructions in the next section.
 4. Run the development server:
    ```bash
    python app.py
    ```
    The database is created automatically on first run and minimal default data is inserted.
 5. Visit `http://localhost:5000` to register an account and start creating links.
+
+### Google OAuth configuration
+
+To enable "Login with Google" you must register your application with Google and
+provide OAuth credentials:
+
+1. Go to <https://console.cloud.google.com/> and create a new project or select
+   an existing one.
+2. Under **APIs & Services > Credentials** choose **Create credentials > OAuth
+   client ID** and select **Web application**.
+3. Add `http://localhost:5000` to **Authorized JavaScript origins** and
+   `http://localhost:5000/login/google/authorized` to **Authorized redirect
+   URIs**.
+4. Save the client ID and secret then export them before starting the server:
+   ```bash
+   export GOOGLE_OAUTH_CLIENT_ID="your-client-id"
+   export GOOGLE_OAUTH_CLIENT_SECRET="your-client-secret"
+   ```
+5. When deploying, update the origins and redirect URI in the Google Cloud
+   console to match your production hostname.
 
 ### Alternative entry points
 
