@@ -4,7 +4,8 @@
 {# Placeholder messaging until Stripe integration is implemented #}
 <p>This is a placeholder checkout page. Payment processing will be added soon.</p>
 <form method="post">
-  {{ csrf_token() }}
+  <!-- Include CSRF token on checkout form -->
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <button type="submit" class="btn btn-success">Complete Purchase</button>
   <a href="{{ url_for('pricing') }}" class="btn btn-secondary ms-2">Cancel</a>
 </form>

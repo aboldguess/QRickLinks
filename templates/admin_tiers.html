@@ -2,7 +2,8 @@
 {% block content %}
 <h2>Pricing Tiers</h2>
 <form method="post">
-  {{ csrf_token() }}
+  <!-- Admin tier changes require CSRF protection -->
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <table class="table table-bordered text-center align-middle">
     <thead>
       <tr>
