@@ -35,22 +35,34 @@ QRickLinks is a Flask application that combines a traditional URL shortener with
 ### Google OAuth configuration
 
 To enable "Login with Google" you must register your application with Google and
-provide OAuth credentials:
+provide OAuth credentials. The steps below show how to set up the credentials
+for local development, a Raspberry&nbsp;Pi or a hosted server such as an AWS
+instance.
 
 1. Go to <https://console.cloud.google.com/> and create a new project or select
    an existing one.
 2. Under **APIs & Services > Credentials** choose **Create credentials > OAuth
-   client ID** and select **Web application**.
-3. Add `http://localhost:5000` to **Authorized JavaScript origins** and
-   `http://localhost:5000/login/google/authorized` to **Authorized redirect
-   URIs**.
-4. Save the client ID and secret then export them before starting the server:
+   client ID** and pick **Web application**.
+3. In **Authorized JavaScript origins** enter the base URL where QRickLinks will
+   be accessible. Examples:
+   - Local development: `http://localhost:5000`
+   - Raspberry&nbsp;Pi on your network running `rpi_qrlinks.py 8080`:
+     `http://<pi-ip>:8080`
+   - Public server or AWS instance: `https://your-domain.com` (append `:port` if
+     not using ports 80 or 443)
+4. In **Authorized redirect URIs** add the same base URL followed by
+   `/login/google/authorized`. For example:
+   - `http://localhost:5000/login/google/authorized`
+   - `http://<pi-ip>:8080/login/google/authorized`
+   - `https://your-domain.com/login/google/authorized`
+5. Save the client ID and secret then export them before starting the server:
    ```bash
    export GOOGLE_OAUTH_CLIENT_ID="your-client-id"
    export GOOGLE_OAUTH_CLIENT_SECRET="your-client-secret"
    ```
-5. When deploying, update the origins and redirect URI in the Google Cloud
-   console to match your production hostname.
+6. You can list multiple origins and redirect URIs in the Google console. If you
+   move the app or change its port, update these entries or Google will refuse
+   the login.
 
 ### Alternative entry points
 
