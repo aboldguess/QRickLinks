@@ -6,6 +6,7 @@
 </div>
 {% for t in themes %}
 <form method="post" class="row g-2 align-items-end mb-3">
+  {{ csrf_token() }}
   <input type="hidden" name="theme_id" value="{{ t.id }}">
   <div class="col-md-2">
     <input type="text" class="form-control" name="name" value="{{ t.name }}" required>
@@ -66,6 +67,7 @@
 {% endfor %}
 {% if can_add %}
 <form method="post" class="row g-2 align-items-end">
+  {{ csrf_token() }}
   <div class="col-md-2">
     <input type="text" class="form-control" name="name" placeholder="Theme name" required>
   </div>

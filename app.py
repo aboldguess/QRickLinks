@@ -16,6 +16,7 @@ from flask import (
 from urllib.parse import urlparse, quote
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user, UserMixin
+from flask_wtf import CSRFProtect
 from itsdangerous import URLSafeTimedSerializer
 from flask_dance.contrib.google import make_google_blueprint, google
 from sqlalchemy import func, text  # text() allows execution of raw SQL strings
@@ -44,6 +45,8 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///qricklinks.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
+# Enable CSRF protection for all POST forms using Flask-WTF
+csrf = CSRFProtect(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
