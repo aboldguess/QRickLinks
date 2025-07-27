@@ -4,7 +4,7 @@
 <table class="table table-striped">
   <thead>
     <tr>
-      <th>Username</th>
+      <th>Email</th>
       <th>Tier</th>
       <th>Links</th>
       <th>Total Clicks</th>
@@ -14,7 +14,7 @@
   <tbody>
     {% for row in users %}
     <tr>
-      <td>{{ row.user.username }}</td>
+      <td>{{ row.user.email }}</td>
       <td>{{ row.user.tier.name if row.user.tier else 'Free' }}</td>
       <td>{{ row.link_count }}</td>
       <td>{{ row.total_clicks }}</td>
