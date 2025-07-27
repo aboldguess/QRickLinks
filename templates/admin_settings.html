@@ -2,7 +2,8 @@
 {% block content %}
 <h2>Global Settings</h2>
 <form method="post">
-  {{ csrf_token() }}
+  <!-- Hidden token protects admin settings form -->
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="mb-3">
     <label for="base_url" class="form-label">Base URL</label>
     <!--

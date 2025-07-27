@@ -8,7 +8,8 @@
 #}
 <h2>Create new link</h2>
 <form method="post" action="{{ url_for('create_link') }}">
-  {{ csrf_token() }}
+  <!-- Hidden CSRF field prevents form tampering -->
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="mb-3">
     <label for="original_url" class="form-label">Long URL</label>
     <!--
@@ -83,7 +84,8 @@
             <span class="icon-sm">C</span><span class="text-label">Customize</span>
           </button>
           <form method="post" action="{{ url_for('delete_link', link_id=link.id) }}">
-            {{ csrf_token() }}
+            <!-- CSRF token for the delete request -->
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete this link and all visit records? This cannot be undone.');">
               <span class="icon-sm">X</span><span class="text-label">Delete</span>
             </button>
@@ -93,7 +95,8 @@
     </div>
     <div class="collapse mt-2" id="c{{ link.id }}">
       <form method="post" action="{{ url_for('customize_link', link_id=link.id) }}" enctype="multipart/form-data" class="row g-2">
-          {{ csrf_token() }}
+          <!-- Token ensures only this user may submit modifications -->
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="col-md-3">
             <label class="form-label">Apply Theme</label>
             <select name="theme_id" class="form-select" {% if not can_colors and not can_styles %}disabled{% endif %}>
