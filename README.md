@@ -24,11 +24,15 @@ QRickLinks is a simple URL shortening service that generates short, memorable sl
    ```bash
    pip install -r requirements.txt
    ```
-2. Run the application:
+2. Optionally set a custom `SECRET_KEY` used to sign session cookies:
+   ```bash
+   export SECRET_KEY="your-secret-string"
+   ```
+3. Run the application:
    ```bash
    python app.py
    ```
-3. Visit `http://localhost:5000` in your browser.
+4. Visit `http://localhost:5000` in your browser.
 
 ### Raspberry Pi Hosting
 
