@@ -12,7 +12,7 @@ QRickLinks is a Flask application that combines a traditional URL shortener with
 - Thumbnail previews of destination pages via the thum.io service
 - Password reset flow that prints reset links to the console
 - Admin interface for managing users, site settings and subscription tiers
-- Subscription system with free and paid tiers, including monthly "freebie" allowances
+- Subscription system with free and paid tiers
 
 ## Installation
 
@@ -65,7 +65,7 @@ Both resolve to the same destination URL.  The QR code image is generated with `
 
 Every visit increments the counter on the associated link and records basic metadata.  The application attempts to resolve the visitor's MAC address from the ARP cache when running on a local network.
 
-Free accounts have monthly quotas for link creation and advanced QR features.  These limits refresh automatically and a small number of "freebies" allow occasional usage beyond the free tier.  Paid tiers remove or increase these limits and can be managed from the admin interface.
+Free accounts have monthly quotas for link creation and advanced QR features.  Paid tiers remove or increase these limits and can be managed from the admin interface.
 
 ## Notes
 
