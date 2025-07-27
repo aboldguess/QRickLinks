@@ -16,6 +16,8 @@ from flask import (
 from urllib.parse import urlparse, quote
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user, UserMixin
+from itsdangerous import URLSafeTimedSerializer
+from flask_dance.contrib.google import make_google_blueprint, google
 from sqlalchemy import func, text  # text() allows execution of raw SQL strings
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -45,6 +47,18 @@ db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
+# Serializer used for generating signed tokens (e.g. password resets)
+serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
+
+# Configure the Google OAuth blueprint so users can log in with Google
+google_bp = make_google_blueprint(
+    client_id=os.environ.get('GOOGLE_OAUTH_CLIENT_ID'),
+    client_secret=os.environ.get('GOOGLE_OAUTH_CLIENT_SECRET'),
+    scope=['profile', 'email'],
+    redirect_to='google_authorized'
+)
+app.register_blueprint(google_bp, url_prefix='/login')
+
 # Number of extra premium actions granted to new/free accounts each month
 FREEBIES_PER_MONTH = 3
 
@@ -54,7 +68,11 @@ FREEBIES_PER_MONTH = 3
 class User(UserMixin, db.Model):
     """Stores registered users."""
     id = db.Column(db.Integer, primary_key=True)
+    # Email is used for authentication and must be unique
+    email = db.Column(db.String(120), unique=True, nullable=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
+    # OAuth provider specific ID for Google logins
+    google_id = db.Column(db.String(255), unique=True)
     password_hash = db.Column(db.String(128), nullable=False)
     links = db.relationship('Link', backref='owner', lazy=True)
     # Flag to determine if the user has administrative privileges
@@ -486,12 +504,17 @@ def index():
 def register():
     """User registration page."""
     if request.method == 'POST':
-        username = request.form['username']
+        username = request.form.get('username')
+        email = request.form.get('email')
         password = request.form['password']
+        # Enforce unique usernames and email addresses
         if User.query.filter_by(username=username).first():
             flash('Username already exists')
             return redirect(url_for('register'))
-        user = User(username=username)
+        if User.query.filter_by(email=email).first():
+            flash('Email already registered')
+            return redirect(url_for('register'))
+        user = User(username=username, email=email)
         # Automatically place new accounts on the free tier so quota checks use
         # the correct limits from the start.
         user.tier = SubscriptionTier.query.filter_by(name='Free').first()
@@ -507,9 +530,12 @@ def register():
 def login():
     """User login page."""
     if request.method == 'POST':
-        username = request.form['username']
+        # Allow login using either the email or username field
+        email = request.form.get('email')
         password = request.form['password']
-        user = User.query.filter_by(username=username).first()
+        user = User.query.filter(
+            (User.email == email) | (User.username == email)
+        ).first()
         if user and user.check_password(password):
             # Existing accounts created before tiers were introduced won't
             # have a tier assigned. Default them to the free tier so usage
@@ -523,12 +549,82 @@ def login():
     return render_template('login.html')
 
 
+@app.route('/google')
+def google_authorized():
+    """Handle the response from Google's OAuth flow."""
+    if not google.authorized:
+        return redirect(url_for('google.login'))
+    resp = google.get('/oauth2/v2/userinfo')
+    if not resp.ok:
+        flash('Failed to authenticate with Google')
+        return redirect(url_for('login'))
+    info = resp.json()
+    # Find an existing user by Google ID or email
+    user = User.query.filter(
+        (User.google_id == info.get('id')) | (User.email == info.get('email'))
+    ).first()
+    if not user:
+        # Generate a unique username from the Google email
+        base = info.get('email', 'google').split('@')[0]
+        username = base
+        count = 1
+        while User.query.filter_by(username=username).first():
+            username = f'{base}{count}'
+            count += 1
+        user = User(
+            username=username,
+            email=info.get('email'),
+            google_id=info.get('id'),
+        )
+        user.tier = SubscriptionTier.query.filter_by(name='Free').first()
+        user.set_password(generate_short_code(12))
+        db.session.add(user)
+        db.session.commit()
+    login_user(user)
+    flash('Logged in with Google')
+    return redirect(url_for('index'))
+
+
 @app.route('/logout')
 @login_required
 def logout():
     """Log the current user out."""
     logout_user()
     return redirect(url_for('login'))
+
+
+@app.route('/forgot_password', methods=['GET', 'POST'])
+def forgot_password():
+    """Send a password reset link to the provided email address."""
+    if request.method == 'POST':
+        email = request.form.get('email')
+        user = User.query.filter_by(email=email).first()
+        if user:
+            token = serializer.dumps(user.id)
+            reset_link = url_for('reset_password', token=token, _external=True)
+            # In lieu of an email server, output the link to the console
+            print(f'Reset link for {email}: {reset_link}')
+        flash('If that email exists, a reset link has been sent.')
+        return redirect(url_for('login'))
+    return render_template('forgot_password.html')
+
+
+@app.route('/reset_password/<token>', methods=['GET', 'POST'])
+def reset_password(token: str):
+    """Allow the user to set a new password via a signed token."""
+    try:
+        user_id = serializer.loads(token, max_age=3600)
+    except Exception:
+        flash('Invalid or expired reset token')
+        return redirect(url_for('login'))
+    user = User.query.get_or_404(user_id)
+    if request.method == 'POST':
+        password = request.form['password']
+        user.set_password(password)
+        db.session.commit()
+        flash('Password updated. Please log in.')
+        return redirect(url_for('login'))
+    return render_template('reset_password.html')
 
 
 @app.route('/pricing')
@@ -1100,6 +1196,8 @@ def initialize_database() -> None:
             'billing_expiry': 'VARCHAR(7)',
             'subscription_renewal': 'DATETIME',
             'tier_id': 'INTEGER',
+            'email': 'VARCHAR(120)',
+            'google_id': 'VARCHAR(255)',
         }
         added_user_cols = False
         for column, ddl in user_map.items():
@@ -1121,6 +1219,19 @@ def initialize_database() -> None:
             if free_tier:
                 User.query.filter(User.tier_id.is_(None)).update({User.tier_id: free_tier.id})
             db.session.commit()
+
+        # Enforce uniqueness on the newly added email and Google ID columns
+        db.session.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_user_email ON user (email)"
+            )
+        )
+        db.session.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_user_google_id ON user (google_id)"
+            )
+        )
+        db.session.commit()
 
         # Retrieve column information for the link table so we can determine
         # which fields may need to be added. Existing installations may not have
