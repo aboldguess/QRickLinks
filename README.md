@@ -10,7 +10,7 @@ QRickLinks is a Flask application that combines a traditional URL shortener with
 - Dashboard showing existing links, usage quotas and visit counts
 - Basic analytics that record IP address, MAC address (when available) and referrer
 - Thumbnail previews of destination pages via the thum.io service
-- Password reset flow that prints reset links to the console
+- Password reset flow with optional email delivery
 - Admin interface for managing users, site settings and subscription tiers
 - Subscription system with free and paid tiers
 
@@ -83,6 +83,16 @@ The initial database seed creates an administrator user so you can immediately a
 * Password: `Admin12345`
 
 Log in at `http://localhost:5000/admin/login` to adjust global settings such as the base URL used when generating short links.
+
+### Password reset emails
+
+Admins can configure an SMTP server so users receive password reset links via
+email. Navigate to **Admin &gt; Password Reset** and enter your server details.
+Leave the server field blank to disable email delivery. When no server is
+configured the reset link will be printed to the console.
+
+You can specify the server address, port, credentials, whether TLS should be
+used, the "from" address and how long reset tokens remain valid.
 
 ## How it works
 

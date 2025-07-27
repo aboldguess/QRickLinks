@@ -198,6 +198,15 @@ class Setting(db.Model):
     analytics_limit = db.Column(db.Integer, default=100)
     # Number of custom slugs free users may choose each month
     custom_slugs_limit = db.Column(db.Integer, default=5)
+    # SMTP server used for password reset emails
+    smtp_server = db.Column(db.String(120), default='')
+    smtp_port = db.Column(db.Integer, default=587)
+    smtp_username = db.Column(db.String(120), default='')
+    smtp_password = db.Column(db.String(120), default='')
+    smtp_use_tls = db.Column(db.Boolean, default=True)
+    smtp_sender = db.Column(db.String(120), default='noreply@example.com')
+    # Token expiry time in hours for password reset links
+    reset_token_hours = db.Column(db.Integer, default=1)
 
 
 class Payment(db.Model):
@@ -445,6 +454,37 @@ def get_settings() -> Setting:
         db.session.commit()
     return settings
 
+# --------------------------------------------------------------
+# Password reset email helper
+# --------------------------------------------------------------
+def send_reset_email(to_email: str, reset_link: str) -> None:
+    """Send the reset link to ``to_email`` using configured SMTP settings."""
+    settings = get_settings()
+    # If the SMTP server is not configured, print the link to the console
+    if not settings.smtp_server:
+        print(f'Reset link for {to_email}: {reset_link}')
+        return
+
+    from email.message import EmailMessage
+    import smtplib
+
+    msg = EmailMessage()
+    msg['Subject'] = 'QRickLinks Password Reset'
+    msg['From'] = settings.smtp_sender
+    msg['To'] = to_email
+    msg.set_content(f'Click the link below to reset your password:\n{reset_link}')
+
+    try:
+        with smtplib.SMTP(settings.smtp_server, settings.smtp_port, timeout=10) as server:
+            if settings.smtp_use_tls:
+                server.starttls()
+            if settings.smtp_username:
+                server.login(settings.smtp_username, settings.smtp_password)
+            server.send_message(msg)
+    except Exception as exc:  # pragma: no cover - best effort logging
+        print('Failed to send reset email:', exc)
+        print(f'Reset link for {to_email}: {reset_link}')
+
 # Map premium features to their Setting quota and User usage fields
 FEATURE_LIMIT_FIELDS = {
     'links': ('links_limit', 'links_created'),
@@ -642,9 +682,10 @@ def forgot_password():
         user = User.query.filter_by(email=email).first()
         if user:
             token = serializer.dumps(user.id)
+            # Build a fully-qualified URL for the reset link
             reset_link = url_for('reset_password', token=token, _external=True)
-            # In lieu of an email server, output the link to the console
-            print(f'Reset link for {email}: {reset_link}')
+            # Send the email or print the link if SMTP is not configured
+            send_reset_email(email, reset_link)
         flash('If that email exists, a reset link has been sent.')
         return redirect(url_for('login'))
     return render_template('forgot_password.html')
@@ -654,7 +695,9 @@ def forgot_password():
 def reset_password(token: str):
     """Allow the user to set a new password via a signed token."""
     try:
-        user_id = serializer.loads(token, max_age=3600)
+        # Convert the admin-configured hours into seconds for ``itsdangerous``
+        expiry = get_settings().reset_token_hours * 3600
+        user_id = serializer.loads(token, max_age=expiry)
     except Exception:
         flash('Invalid or expired reset token')
         return redirect(url_for('login'))
@@ -895,6 +938,25 @@ def admin_settings():
         flash('Settings updated')
         return redirect(url_for('admin_dashboard'))
     return render_template('admin_settings.html', settings=settings)
+
+
+@app.route('/admin/password_settings', methods=['GET', 'POST'])
+@admin_required
+def admin_password_settings():
+    """Configure SMTP details for password reset emails."""
+    settings = get_settings()
+    if request.method == 'POST':
+        settings.smtp_server = request.form['smtp_server']
+        settings.smtp_port = int(request.form['smtp_port'])
+        settings.smtp_username = request.form['smtp_username']
+        settings.smtp_password = request.form['smtp_password']
+        settings.smtp_use_tls = 'smtp_use_tls' in request.form
+        settings.smtp_sender = request.form['smtp_sender']
+        settings.reset_token_hours = int(request.form['reset_token_hours'])
+        db.session.commit()
+        flash('Email settings updated')
+        return redirect(url_for('admin_dashboard'))
+    return render_template('admin_password_settings.html', settings=settings)
 
 
 @app.route('/admin/users')
@@ -1492,6 +1554,13 @@ def initialize_database() -> None:
             'logo_embedding_limit': 'INTEGER DEFAULT 1',
             'analytics_limit': 'INTEGER DEFAULT 100',
             'custom_slugs_limit': 'INTEGER DEFAULT 5',
+            'smtp_server': "VARCHAR(120) DEFAULT ''",
+            'smtp_port': 'INTEGER DEFAULT 587',
+            'smtp_username': "VARCHAR(120) DEFAULT ''",
+            'smtp_password': "VARCHAR(120) DEFAULT ''",
+            'smtp_use_tls': 'BOOLEAN DEFAULT 1',
+            'smtp_sender': "VARCHAR(120) DEFAULT 'noreply@example.com'",
+            'reset_token_hours': 'INTEGER DEFAULT 1',
         }
         added_setting_cols = False
         for column, ddl in setting_map.items():
