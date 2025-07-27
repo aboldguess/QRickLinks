@@ -4,14 +4,14 @@
 <div class="card mb-3">
   <div class="card-body">
     <h5 class="card-title">Subscription</h5>
-    {% if current_user.is_premium %}
-    <p class="card-text">You have an active <strong>Pro</strong> subscription.</p>
+    {% if current_user.tier and current_user.tier.name != 'Free' %}
+    <p class="card-text">You have an active <strong>{{ current_user.tier.name }}</strong> subscription.</p>
     <p>Next renewal: {{ current_user.subscription_renewal.strftime('%Y-%m-%d') if current_user.subscription_renewal else 'N/A' }}</p>
     <form method="post" action="{{ url_for('cancel_subscription') }}">
       <button type="submit" class="btn btn-danger">Cancel Subscription</button>
     </form>
     {% else %}
-    <p class="card-text">You are currently on the free plan.</p>
+    <p class="card-text">You are currently on the Free plan.</p>
     <a class="btn btn-primary" href="{{ url_for('pricing') }}">Upgrade</a>
     {% endif %}
   </div>

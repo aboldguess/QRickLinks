@@ -54,7 +54,7 @@
     </tr>
   </tbody>
 </table>
-{% if current_user.is_authenticated and not current_user.is_premium %}
+{% if current_user.is_authenticated and (not current_user.tier or current_user.tier.name == 'Free') %}
 <a class="btn btn-primary" href="{{ url_for('subscribe') }}">Subscribe</a>
 {% endif %}
 <script>
