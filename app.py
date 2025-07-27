@@ -518,6 +518,14 @@ def subscribe():
     return render_template('subscribe.html')
 
 
+@app.route('/settings')
+@login_required
+def user_settings():
+    """Display the user's subscription info and freebie balance."""
+    reset_usage_if_needed(current_user)
+    return render_template('user_settings.html')
+
+
 # ----------------------------
 # Admin Routes
 # ----------------------------

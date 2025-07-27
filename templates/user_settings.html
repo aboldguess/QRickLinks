@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Account Settings</h2>
+<div class="card mb-3">
+  <div class="card-body">
+    <p>Freebies remaining: {{ current_user.freebies_remaining }} (resets {{ current_user.freebies_reset.strftime('%Y-%m-%d') }})</p>
+    {% if current_user.is_premium %}
+    <p>You have an active <strong>Pro</strong> subscription.</p>
+    {% else %}
+    <p>You are currently on the free plan.</p>
+    <a class="btn btn-primary" href="{{ url_for('pricing') }}">Upgrade</a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
