@@ -32,6 +32,10 @@
     <label for="analytics_limit" class="form-label">Analytics Views</label>
     <input type="number" class="form-control" id="analytics_limit" name="analytics_limit" value="{{ settings.analytics_limit }}" min="0">
   </div>
+  <div class="mb-3">
+    <label for="custom_slugs_limit" class="form-label">Custom Slugs</label>
+    <input type="number" class="form-control" id="custom_slugs_limit" name="custom_slugs_limit" value="{{ settings.custom_slugs_limit }}" min="0">
+  </div>
   <button type="submit" class="btn btn-primary">Save</button>
 </form>
 {% endblock %}
