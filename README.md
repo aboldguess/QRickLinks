@@ -31,6 +31,8 @@ QRickLinks is a Flask application that combines a traditional URL shortener with
    python app.py
    ```
    The database is created automatically on first run and minimal default data is inserted.
+   Alternatively you can run the app with `flask run` and the tables will be
+   created when the application first receives a request.
 5. Visit `http://localhost:5000` to register an account and start creating links.
 
 ### Google OAuth configuration
