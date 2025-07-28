@@ -1645,6 +1645,30 @@ def initialize_database() -> None:
             row[1] for row in db.session.execute(text("PRAGMA table_info(visit)")).fetchall()
         ]
 
+        # Retrieve existing columns for the colour_theme table so new fields
+        # can be added when the application is upgraded.
+        theme_columns = [
+            row[1]
+            for row in db.session.execute(
+                text("PRAGMA table_info(colour_theme)")
+            ).fetchall()
+        ]
+
+        # Add missing columns to the colour_theme table so older installations
+        # gain new features without manual migrations.
+        theme_map = {
+            "barcode_type": "VARCHAR(20) DEFAULT 'qr'",
+        }
+        added_theme_cols = False
+        for column, ddl in theme_map.items():
+            if column not in theme_columns:
+                db.session.execute(
+                    text(f"ALTER TABLE colour_theme ADD COLUMN {column} {ddl}")
+                )
+                added_theme_cols = True
+        if added_theme_cols:
+            db.session.commit()
+
         # ------------------------------------------------------------------
         # Customisation columns
         # ------------------------------------------------------------------
