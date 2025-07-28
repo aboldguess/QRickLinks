@@ -1772,8 +1772,13 @@ def initialize_database() -> None:
                 SubscriptionTier(name='Basic', monthly_price=5.0, yearly_price=50.0, links_unlimited=True, custom_colors_unlimited=True, advanced_styles_unlimited=True, code_formats_unlimited=True, advanced_formats_unlimited=True, logo_embedding_unlimited=True, analytics_unlimited=True, custom_slugs_unlimited=True, full_palette=False, colour_themes_limit=3),
                 SubscriptionTier(name='Pro', monthly_price=10.0, yearly_price=100.0, links_unlimited=True, custom_colors_unlimited=True, advanced_styles_unlimited=True, code_formats_unlimited=True, advanced_formats_unlimited=True, logo_embedding_unlimited=True, analytics_unlimited=True, custom_slugs_unlimited=True, full_palette=True, colour_themes_unlimited=True),
             ])
-            db.session.commit()
+        db.session.commit()
 
+
+# Running ``flask run`` imports the app without executing the ``__main__``
+# block. Call ``initialize_database`` here so the database is prepared
+# regardless of how the server is launched.
+initialize_database()
 
 if __name__ == '__main__':
     # Prepare the database and default records before starting
