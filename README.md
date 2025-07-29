@@ -96,6 +96,10 @@ Start the server with:
 
 Omitting `--development` runs a production Waitress server.
 
+Make sure the selected `PORT` is accessible externally. Open the port in the
+VM's firewall (for example `sudo ufw allow 5000`) and create an inbound rule in
+the Azure network security group.
+
 ### Administrator account
 
 The initial database seed creates an administrator user so you can immediately access the admin dashboard:
