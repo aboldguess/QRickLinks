@@ -31,6 +31,14 @@ if [ -f env.sh ]; then
     source env.sh
 fi
 
+# Allow incoming traffic on the chosen port when a firewall is active. This
+# helps make the app reachable externally without requiring manual steps.
+if command -v ufw >/dev/null 2>&1 && sudo ufw status | grep -q "Status: active"; then
+    sudo ufw allow "${PORT}"/tcp || true
+elif command -v firewall-cmd >/dev/null 2>&1 && sudo firewall-cmd --state >/dev/null 2>&1; then
+    sudo firewall-cmd --permanent --add-port="${PORT}/tcp" && sudo firewall-cmd --reload
+fi
+
 # Activate the virtual environment
 source venv/bin/activate
 
