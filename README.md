@@ -78,6 +78,24 @@ instance.
   python run_windows.py 5001
   ```
 
+
+### Azure VM deployment
+
+Clone the repository on your VM and run:
+
+```bash
+./setup_azure.sh
+```
+
+This installs dependencies and creates `env.sh` with a `SECRET_KEY` if needed.
+Start the server with:
+
+```bash
+./run_server.sh [-p PORT] [--development]
+```
+
+Omitting `--development` runs a production Waitress server.
+
 ### Administrator account
 
 The initial database seed creates an administrator user so you can immediately access the admin dashboard:
