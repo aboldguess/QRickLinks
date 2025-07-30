@@ -94,6 +94,9 @@ Start the server with:
 ./run_server.sh [-p PORT] [--development]
 ```
 
+The script now creates a Python virtual environment on first run if one is not
+present, so running it directly is enough to install all requirements.
+
 Omitting `--development` runs a production Waitress server.
 
 Make sure the selected `PORT` is accessible externally. Open the port in the
