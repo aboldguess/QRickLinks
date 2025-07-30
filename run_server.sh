@@ -28,7 +28,24 @@ done
 
 # Load environment variables if present
 if [ -f env.sh ]; then
+    # shellcheck disable=SC1091  # env.sh is user generated
     source env.sh
+fi
+
+# ---------------------------------------------------------------------------
+# Ensure a virtual environment exists so dependencies are isolated. This keeps
+# the script self-contained and avoids requiring the separate setup script on
+# first run.
+# ---------------------------------------------------------------------------
+if [ ! -f "venv/bin/activate" ]; then
+    echo "Creating Python virtual environment and installing dependencies..."
+    python3 -m venv venv
+    source venv/bin/activate
+    pip install --upgrade pip
+    pip install -r requirements.txt
+else
+    # Activate the existing environment
+    source venv/bin/activate
 fi
 
 # Allow incoming traffic on the chosen port when a firewall is active. This
@@ -38,9 +55,6 @@ if command -v ufw >/dev/null 2>&1 && sudo ufw status | grep -q "Status: active";
 elif command -v firewall-cmd >/dev/null 2>&1 && sudo firewall-cmd --state >/dev/null 2>&1; then
     sudo firewall-cmd --permanent --add-port="${PORT}/tcp" && sudo firewall-cmd --reload
 fi
-
-# Activate the virtual environment
-source venv/bin/activate
 
 # Ensure the database schema is ready before starting
 python - <<PY
