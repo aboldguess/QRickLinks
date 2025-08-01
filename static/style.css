@@ -51,3 +51,15 @@ body {
   border-color: #ffc107;    /* match Bootstrap warning hue */
 }
 
+/* Small coloured circles used to display link availability */
+.status-indicator {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+.status-ok { background-color: #28a745; }
+.status-warn { background-color: #ffc107; }
+.status-error { background-color: #dc3545; }
+.status-unknown { background-color: #6c757d; }
+

@@ -12,6 +12,7 @@ from flask import (
     send_from_directory,
     abort,
     send_file,
+    jsonify,
 )
 from urllib.parse import urlparse, quote
 import requests  # used for server-side IP geolocation lookups
@@ -362,6 +363,53 @@ def lookup_geo(ip: str) -> tuple[float, float] | None:
         # markers simply won't appear for the problematic IP.
         pass
     return None
+
+
+def run_site_check(link: 'Link', fix: bool = False) -> dict:
+    """Return availability information for ``link``.
+
+    When ``fix`` is True and the initial request fails, the function attempts to
+    switch between ``http`` and ``https`` automatically.  If the alternate
+    scheme responds successfully the link's URL is updated in the database.
+    """
+
+    url = link.original_url
+    try:
+        # ``HEAD`` is cheaper than ``GET`` for availability checks yet still
+        # returns an informative status code.  ``allow_redirects`` ensures we
+        # follow any redirects so the final status reflects the real endpoint.
+        resp = requests.head(url, allow_redirects=True, timeout=5)
+        status = resp.status_code
+    except Exception as exc:
+        # Network errors are captured so the caller can present a helpful
+        # diagnostic to the user.
+        return {"status": "error", "message": str(exc), "url": url}
+
+    if status < 400:
+        return {"status": "ok", "message": f"HTTP {status}", "url": url}
+    elif status < 500:
+        result = {"status": "warn", "message": f"Client error {status}", "url": url}
+    else:
+        result = {"status": "error", "message": f"Server error {status}", "url": url}
+
+    if fix and result["status"] == "error":
+        # Swap between http and https in an attempt to recover from a common
+        # misconfiguration such as an incorrect scheme.
+        if url.startswith("http://"):
+            alt = url.replace("http://", "https://", 1)
+        else:
+            alt = url.replace("https://", "http://", 1)
+        try:
+            alt_resp = requests.head(alt, allow_redirects=True, timeout=5)
+            if alt_resp.status_code < 400:
+                # Persist the working URL so future checks succeed.
+                link.original_url = alt
+                db.session.commit()
+                return {"status": "ok", "message": f"Updated to {alt}", "url": alt}
+        except Exception:
+            pass
+
+    return result
 
 
 def create_qr_code(
@@ -1325,6 +1373,18 @@ def download_qr(filename: str, fmt: str):
         )
 
     abort(404)
+
+
+@app.route('/check_site/<int:link_id>')
+@login_required
+def check_site(link_id: int):
+    """Return JSON status for the given link and optionally apply a fix."""
+    link = Link.query.get_or_404(link_id)
+    if link.owner != current_user:
+        abort(403)
+    fix = request.args.get('fix') == '1'
+    result = run_site_check(link, fix)
+    return jsonify(result)
 
 
 @app.route('/delete/<int:link_id>', methods=['POST'])
