@@ -9,6 +9,8 @@ QRickLinks is a Flask application that combines a traditional URL shortener with
 - Automatic QR code creation for every link with extensive customisation options
   including multiple module patterns such as rounded, gapped and bar styles
 - Dashboard showing existing links, usage quotas and visit counts
+- Built-in diagnostics check if target sites are reachable and display a
+  traffic light status next to each entry with optional one-click fixes
 - Basic analytics that record IP address, MAC address (when available) and referrer
 - Thumbnail previews of destination pages via the thum.io service
 - Password reset flow with optional email delivery
@@ -144,6 +146,12 @@ When a user creates a link, two identifiers are generated:
 Both resolve to the same destination URL.  The QR code image is generated with `qrcode` and stored in `static/qr/`.  Customisation options (colours, module style, error correction level and optional logo) are persisted so the code can be recreated later or downloaded as SVG.
 
 Every visit increments the counter on the associated link and records basic metadata.  The application attempts to resolve the visitor's MAC address from the ARP cache when running on a local network.
+
+The dashboard can run a quick availability test on each destination URL. A
+small traffic light indicator shows green when the site responds, amber for
+client errors and red for server errors or connection failures. When a link
+fails the test QRickLinks offers to automatically switch between `http` and
+`https`.
 
 Free accounts have monthly quotas for link creation and advanced QR features.  Paid tiers remove or increase these limits and can be managed from the admin interface.
 

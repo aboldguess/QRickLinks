@@ -39,7 +39,9 @@
 </form>
 
 <hr>
-<h2>Your links</h2>
+<h2 class="d-flex align-items-center">Your links
+  <button class="btn btn-sm btn-outline-secondary ms-auto" onclick="checkAll()">Run Diagnostics</button>
+</h2>
 {#
   Each link is displayed as a Bootstrap card instead of a wide table row so the
   three URL variants stack vertically on mobile devices. The card layout also
@@ -50,7 +52,10 @@
   <div class="card-body">
     <div class="d-md-flex justify-content-between align-items-start">
       <div class="mb-2">
-        <div><a href="{{ link.short_url }}" target="_blank">{{ link.slug }}</a></div>
+        <div>
+          <a href="{{ link.short_url }}" target="_blank">{{ link.slug }}</a>
+          <span class="status-indicator status-unknown ms-1" id="status-{{ link.id }}" data-link="{{ link.id }}"></span>
+        </div>
         <div><a href="{{ link.code_url }}" target="_blank">{{ link.short_code }}</a></div>
         <div><a href="{{ link.original_url }}" target="_blank">{{ link.original_url }}</a></div>
       </div>
@@ -76,6 +81,9 @@
           </a>
           <button class="btn btn-sm btn-outline-primary mb-1" type="button" data-bs-toggle="collapse" data-bs-target="#c{{ link.id }}" aria-expanded="false" aria-controls="c{{ link.id }}">
             <span class="icon-sm">C</span><span class="text-label">Customize</span>
+          </button>
+          <button class="btn btn-sm btn-warning mb-1" type="button" onclick="checkLink({{ link.id }})">
+            <span class="icon-sm">?</span><span class="text-label">Check</span>
           </button>
           <form method="post" action="{{ url_for('delete_link', link_id=link.id) }}">
             <!-- CSRF token for the delete request -->
@@ -172,4 +180,36 @@
   </div>
 </div>
 {% endfor %}
+<script>
+function updateStatus(id, status) {
+  const el = document.getElementById('status-' + id);
+  el.className = 'status-indicator status-' + status + ' ms-1';
+}
+
+function checkLink(id) {
+  fetch('/check_site/' + id)
+    .then(r => r.json())
+    .then(data => {
+      updateStatus(id, data.status);
+      if (data.status !== 'ok') {
+        const msg = data.message + '\nAttempt automatic fix?';
+        if (confirm(msg)) {
+          fetch('/check_site/' + id + '?fix=1')
+            .then(r => r.json())
+            .then(res => {
+              updateStatus(id, res.status);
+              alert(res.message);
+            });
+        }
+      }
+    });
+}
+
+function checkAll() {
+  document.querySelectorAll('.status-indicator').forEach(el => {
+    const id = el.dataset.link;
+    if (id) checkLink(id);
+  });
+}
+</script>
 {% endblock %}
