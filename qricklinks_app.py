@@ -40,6 +40,7 @@ from qrcode.image.styles.moduledrawers import svg as svg_drawers
 import io
 from qrcode.image.styles.colormasks import SolidFillColorMask
 from PIL import ImageColor
+import logging
 
 # Initialize Flask app and database
 app = Flask(__name__)
@@ -48,6 +49,11 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'change-this-secret-key')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///qricklinks.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Configure basic logging so debugging information is printed to the
+# terminal. The log level can be adjusted via the ``QRICKLINKS_LOG_LEVEL``
+# environment variable to aid troubleshooting in production.
+logging.basicConfig(level=os.environ.get("QRICKLINKS_LOG_LEVEL", "INFO"))
 
 db = SQLAlchemy(app)
 # Enable CSRF protection for all POST forms using Flask-WTF
@@ -1033,6 +1039,54 @@ def user_settings():
         limited_palette=LIMITED_PALETTE,
         barcode_types=BARCODE_TYPES,
     )
+
+
+# ----------------------------
+# Profile Menu Routes
+# ----------------------------
+
+
+@app.route('/manage_profiles')
+@login_required
+def manage_profiles() -> str:
+    """Allow the user to manage additional profiles."""
+    app.logger.info("Manage Profiles accessed by %s", current_user.email)
+    return render_template('manage_profiles.html')
+
+
+@app.route('/learning_zone')
+@login_required
+def learning_zone() -> str:
+    """Educational resources for using QRickLinks."""
+    app.logger.info("Learning Zone accessed by %s", current_user.email)
+    return render_template('learning_zone.html')
+
+
+@app.route('/my_details')
+@login_required
+def my_details() -> str:
+    """Display or update the current user's details."""
+    app.logger.info("My Details accessed by %s", current_user.email)
+    return render_template('my_details.html')
+
+
+@app.route('/subscription_details')
+@login_required
+def subscription_details() -> str:
+    """Show information about the user's subscription."""
+    app.logger.info("Subscription Details accessed by %s", current_user.email)
+    return render_template('subscription_details.html')
+
+
+@app.route('/manage_users')
+@login_required
+def manage_users() -> str:
+    """Administrative interface for managing users."""
+    if not current_user.is_admin:
+        app.logger.warning("Unauthorized Manage Users access by %s", current_user.email)
+        abort(403)
+    app.logger.info("Manage Users accessed by %s", current_user.email)
+    return render_template('manage_users.html')
 
 
 # ----------------------------

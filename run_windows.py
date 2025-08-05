@@ -31,7 +31,9 @@ def main() -> None:
     subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
 
     # Import the Flask application only after dependencies are available
-    from app import app, initialize_database
+    # Import the Flask app and database setup helper from the descriptive
+    # ``qricklinks_app`` module so the name clearly reflects the project.
+    from qricklinks_app import app, initialize_database
 
     # Perform database migrations and insert default records
     initialize_database()
