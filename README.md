@@ -19,23 +19,32 @@ QRickLinks is a Flask application that combines a traditional URL shortener with
 
 ## Installation
 
-1. Install the Python dependencies:
+1. Create and activate a virtual environment so dependencies stay isolated:
+   - **Linux/macOS**
+     ```bash
+     python3 -m venv venv
+     source venv/bin/activate
+     ```
+   - **Windows**
+     ```powershell
+     py -m venv venv
+     .\venv\Scripts\activate
+     ```
+2. Install the Python dependencies:
    ```bash
    pip install -r requirements.txt
    ```
-2. (Optional) export a `SECRET_KEY` so session cookies are signed with your own value:
+3. (Optional) export a `SECRET_KEY` so session cookies are signed with your own value:
    ```bash
    export SECRET_KEY="your-secret-key"
    ```
-3. (Optional) configure Google OAuth by setting `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` in the environment. See the detailed instructions in the next section.
-4. Run the development server:
+4. (Optional) configure Google OAuth by setting `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` in the environment. See the detailed instructions in the next section.
+5. Run the development server:
    ```bash
-   python app.py
+   python qricklinks_app.py
    ```
-   The database is created automatically on first run and minimal default data is inserted.
-   Alternatively you can run the app with `flask run` and the tables will be
-   created when the application first receives a request.
-5. Visit `http://localhost:5000` to register an account and start creating links.
+   The database is created automatically on first run and minimal default data is inserted. Alternatively you can run the app with `flask run` and the tables will be created when the application first receives a request.
+6. Visit `http://localhost:5000` to register an account and start creating links.
 
 ### Google OAuth configuration
 

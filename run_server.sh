@@ -58,7 +58,8 @@ fi
 
 # Ensure the database schema is ready before starting
 python - <<PY
-from app import initialize_database
+# Import the database initialisation helper from the project-specific module
+from qricklinks_app import initialize_database
 initialize_database()
 PY
 

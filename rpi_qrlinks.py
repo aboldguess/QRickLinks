@@ -14,9 +14,12 @@ Omitting ``port`` defaults to ``5000``.
 
 import argparse
 
-# Import the Flask application instance from app.py
-# Import the Flask app and database initialization helper
-from app import app, initialize_database, get_settings
+# Import the Flask application instance from the dedicated module
+# ``qricklinks_app`` along with helpers for setting up the database and
+# reading configuration. Using a descriptive module name makes it clear which
+# project the application belongs to and aids debugging when multiple Flask
+# apps are installed on the same system.
+from qricklinks_app import app, initialize_database, get_settings
 import socket
 
 try:
@@ -53,7 +56,7 @@ def main() -> None:
     # the network.  ``socket`` is used to detect the local IP address without
     # making an external request.  The resulting URL includes the chosen port
     # so it matches the running server.
-    from app import db
+    from qricklinks_app import db
     with app.app_context():
         settings = get_settings()
         try:
