@@ -1,0 +1,26 @@
+# QRickLinks Git Ignore Rules
+#
+# This file lists artefacts that should not be committed to version control.
+# It keeps local environments clean by excluding caches, editor settings and
+# secrets created from ``.env.example``.
+
+# Virtual environments
+venv/
+.venv/
+
+# Python cache and build output
+__pycache__/
+*.py[cod]
+*.egg-info/
+instance/
+
+# Environment configuration
+.env
+.env.*
+!.env.example
+*.sqlite3
+qricklinks.db
+
+# Operating system cruft
+.DS_Store
+Thumbs.db

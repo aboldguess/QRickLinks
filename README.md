@@ -34,17 +34,30 @@ QRickLinks is a Flask application that combines a traditional URL shortener with
    ```bash
    pip install -r requirements.txt
    ```
-3. (Optional) export a `SECRET_KEY` so session cookies are signed with your own value:
+3. Create a `.env` file to hold secrets and deployment specific settings. The
+   helper script generates a strong `SECRET_KEY` automatically:
+   - **Linux/macOS**
+     ```bash
+     python bootstrap_qricklinks_environment.py --generate-secret
+     ```
+   - **Windows**
+     ```powershell
+     py bootstrap_qricklinks_environment.py --generate-secret
+     ```
+   The script copies `.env.example` to `.env`. Re-run it with `--force` if you
+   need to regenerate the file.
+4. (Optional) export a `SECRET_KEY` so session cookies are signed with your own value
+   when you prefer not to use the `.env` file:
    ```bash
    export SECRET_KEY="your-secret-key"
    ```
-4. (Optional) configure Google OAuth by setting `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` in the environment. See the detailed instructions in the next section.
-5. Run the development server:
+5. (Optional) configure Google OAuth by setting `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` in the `.env` file or exporting them in the environment. See the detailed instructions in the next section.
+6. Run the development server:
    ```bash
    python qricklinks_app.py
    ```
    The database is created automatically on first run and minimal default data is inserted. Alternatively you can run the app with `flask run` and the tables will be created when the application first receives a request.
-6. Visit `http://localhost:5000` to register an account and start creating links.
+7. Visit `http://localhost:5000` to register an account and start creating links.
 
 ### Google OAuth configuration
 
