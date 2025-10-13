@@ -1,3 +1,16 @@
+"""
+# QRickLinks Application Module
+
+This module contains the Flask application responsible for generating short
+links and QR codes while offering analytics, subscription management and
+administrative tools.  The file is organised into clearly separated sections
+covering configuration, database models, helper utilities, blueprints and the
+route handlers that power the user interface.  Each section includes inline
+documentation to assist developers when navigating or debugging the
+application.  Environment variables are loaded at start-up so deployments can
+be configured without modifying the source code.
+"""
+
 import os
 import random
 from datetime import datetime, timedelta
@@ -41,13 +54,21 @@ import io
 from qrcode.image.styles.colormasks import SolidFillColorMask
 from PIL import ImageColor
 import logging
+from dotenv import load_dotenv
+
+# Load environment variables from a local ``.env`` file if present.  This keeps
+# secrets out of version control while allowing convenient configuration during
+# development.
+load_dotenv()
 
 # Initialize Flask app and database
 app = Flask(__name__)
 # Use a secret key from the environment if available so deployments can set
 # their own value. A hard-coded default keeps development setups simple.
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'change-this-secret-key')
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///qricklinks.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
+    'SQLALCHEMY_DATABASE_URI', 'sqlite:///qricklinks.db'
+)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Configure basic logging so debugging information is printed to the
