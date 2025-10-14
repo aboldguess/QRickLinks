@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+ #!/usr/bin/env python3
 """Run the QRickLinks Flask app on a Raspberry Pi.
 
 This helper accepts a port number as its first argument and can optionally
@@ -21,6 +21,7 @@ import argparse
 # apps are installed on the same system.
 from qricklinks_app import app, initialize_database, get_settings
 import socket
+import os
 
 try:
     # Waitress is a lightweight production WSGI server
@@ -59,16 +60,23 @@ def main() -> None:
     from qricklinks_app import db
     with app.app_context():
         settings = get_settings()
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(("8.8.8.8", 80))
-            local_ip = s.getsockname()[0]
-            s.close()
-        except Exception:
-            # Fallback to localhost if the IP cannot be determined (e.g. no
-            # network connection). This still allows local usage.
-            local_ip = "localhost"
-        settings.base_url = f"http://{local_ip}:{args.port}"
+                public_base = os.environ.get("PUBLIC_BASE_URL")
+        if public_base:
+            settings.base_url = public_base.rstrip('/')
+        else:
+
+
+                  try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s.connect(("8.8.8.8", 80))
+                local_ip = s.getsockname()[0]
+                s.close()
+            except Exception:
+                # Fallback to localhost if the IP cannot be determined (e.g. no network connection).
+                # This still allows local usage.
+                local_ip = "localhost"
+            settings.base_url = f"http://{local_ip}:{args.port}"
+      
         # Persist the change immediately in case the server is restarted later.
         db.session.commit()
 
