@@ -13,6 +13,7 @@ Omitting ``port`` defaults to ``5000``.
 """
 
 import argparse
+import logging
 
 # Import the Flask application instance from the dedicated module
 # ``qricklinks_app`` along with helpers for setting up the database and
@@ -60,32 +61,44 @@ def main() -> None:
     from qricklinks_app import db
     with app.app_context():
         settings = get_settings()
-                public_base = os.environ.get("PUBLIC_BASE_URL")
+        public_base = os.environ.get("PUBLIC_BASE_URL")
         if public_base:
             settings.base_url = public_base.rstrip('/')
         else:
-
-
-                  try:
-                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                s.connect(("8.8.8.8", 80))
-                local_ip = s.getsockname()[0]
-                s.close()
-            except Exception:
-                # Fallback to localhost if the IP cannot be determined (e.g. no network connection).
-                # This still allows local usage.
+            try:
+                # ``socket`` is used in a ``with`` block so the descriptor is
+                # released immediately even if an exception occurs while
+                # retrieving the address.
+                with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+                    sock.connect(("8.8.8.8", 80))
+                    local_ip = sock.getsockname()[0]
+            except Exception as exc:  # pragma: no cover - network dependent
+                # Fallback to localhost if the IP cannot be determined (e.g. no
+                # network connection).  Logging the exception gives developers a
+                # hint as to why the automatic detection failed.
+                logging.getLogger(__name__).warning(
+                    "Could not determine local IP automatically, defaulting to localhost: %s",
+                    exc,
+                )
                 local_ip = "localhost"
             settings.base_url = f"http://{local_ip}:{args.port}"
       
         # Persist the change immediately in case the server is restarted later.
         db.session.commit()
 
-    if args.production and serve:
-        # Start the app with Waitress for better performance in production
-        serve(app, host="0.0.0.0", port=args.port)
-    else:
-        # Fall back to the built-in development server
-        app.run(host="0.0.0.0", port=args.port)
+    if args.production:
+        if serve is None:
+            logging.getLogger(__name__).warning(
+                "Waitress is not installed; falling back to Flask's development server."
+            )
+        else:
+            # Start the app with Waitress for better performance in production
+            serve(app, host="0.0.0.0", port=args.port)
+            return
+
+    # Fall back to the built-in development server (either explicitly chosen or
+    # because Waitress is unavailable).
+    app.run(host="0.0.0.0", port=args.port)
 
 
 if __name__ == "__main__":
