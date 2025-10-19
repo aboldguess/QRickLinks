@@ -1,8 +1,4 @@
 {
-  "_readme": [
-    "QRickLinks Vercel deployment configuration file.",
-    "Defines the Python serverless function entry point and static asset routing."
-  ],
   "version": 2,
   "builds": [
     {
