@@ -1,0 +1,26 @@
+{
+  "_readme": [
+    "QRickLinks Vercel deployment configuration file.",
+    "Defines the Python serverless function entry point and static asset routing."
+  ],
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/index.py",
+      "use": "@vercel/python",
+      "config": {
+        "runtime": "python3.11"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/static/(.*)",
+      "dest": "/static/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "api/index.py"
+    }
+  ]
+}
