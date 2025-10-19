@@ -2,11 +2,13 @@
 # QRickLinks Environment Bootstrap Script
 
 This utility prepares local configuration for the QRickLinks project.  It copies
-``.env.example`` to ``.env`` (optionally overwriting an existing file), generates
-cryptographically secure secrets when requested and logs the performed actions
-for easy auditing.  The module is intentionally linear: helper functions handle
-argument parsing, logging configuration and environment creation so
-contributors can quickly understand each step when debugging setup issues.
+``.env.example`` to a suite of environment files used by both traditional
+workflows (``.env``) and Vercel deployments (``.env.local``, ``.env.production``
+and ``.vercel/.env.production.local``).  The helper generates
+cryptographically secure secrets when requested and logs every action for easy
+auditing.  The module is intentionally linear: helper functions handle argument
+parsing, logging configuration and environment creation so contributors can
+quickly understand each step when debugging setup issues.
 """
 
 from __future__ import annotations
@@ -17,8 +19,16 @@ import secrets
 from pathlib import Path
 
 ENV_TEMPLATE = Path(".env.example")
-ENV_FILE = Path(".env")
 DEFAULT_SECRET = "change-this-secret-key"
+ENV_VARIANTS: tuple[tuple[str, Path], ...] = (
+    ("Primary .env", Path(".env")),
+    ("Local overrides .env.local", Path(".env.local")),
+    ("Production defaults .env.production", Path(".env.production")),
+    (
+        "Vercel CLI production env .vercel/.env.production.local",
+        Path(".vercel") / ".env.production.local",
+    ),
+)
 
 
 def configure_logging(level: str) -> None:
@@ -72,15 +82,19 @@ def build_secret(existing: str, should_replace: bool) -> str:
     return existing
 
 
-def create_env_file(content: str, overwrite: bool) -> None:
-    """Write the environment file to disk respecting overwrite preferences."""
+def create_env_files(content: str, overwrite: bool) -> None:
+    """Write environment files for local use and Vercel CLI integration."""
 
-    if ENV_FILE.exists() and not overwrite:
-        logging.info("Existing .env found; run with --force to overwrite.")
-        return
+    for description, path in ENV_VARIANTS:
+        if path.exists() and not overwrite:
+            logging.info("Existing %s found; run with --force to overwrite.", path)
+            continue
 
-    ENV_FILE.write_text(content, encoding="utf-8")
-    logging.info("Environment file written to %s", ENV_FILE)
+        if path.parent != Path("."):
+            path.parent.mkdir(parents=True, exist_ok=True)
+
+        path.write_text(content, encoding="utf-8")
+        logging.info("%s written to %s", description, path)
 
 
 
@@ -105,9 +119,9 @@ def main() -> None:
         else:
             lines.append(line)
 
-    create_env_file("\n".join(lines) + "\n", args.force)
+    create_env_files("\n".join(lines) + "\n", args.force)
     logging.info(
-        "Bootstrap complete. Review .env to ensure Google OAuth and other settings are configured."
+        "Bootstrap complete. Review .env (and its Vercel copies) to ensure Google OAuth and other settings are configured."
     )
 
 

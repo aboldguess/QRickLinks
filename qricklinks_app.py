@@ -66,9 +66,22 @@ app = Flask(__name__)
 # Use a secret key from the environment if available so deployments can set
 # their own value. A hard-coded default keeps development setups simple.
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'change-this-secret-key')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
-    'SQLALCHEMY_DATABASE_URI', 'sqlite:///qricklinks.db'
-)
+
+# Choose an appropriate database URI.  When the Vercel runtime is detected and
+# no explicit ``SQLALCHEMY_DATABASE_URI`` was provided we fall back to an
+# ephemeral SQLite database stored under ``/tmp`` which is the only writable
+# location inside a serverless function.  Local development continues to use
+# ``qricklinks.db`` in the project root by default.
+if os.environ.get('VERCEL') == '1' and not os.environ.get('SQLALCHEMY_DATABASE_URI'):
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/qricklinks.db'
+    logging.info(
+        'VERCEL environment detected without SQLALCHEMY_DATABASE_URI; '
+        'defaulting to ephemeral SQLite database at /tmp/qricklinks.db.'
+    )
+else:
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
+        'SQLALCHEMY_DATABASE_URI', 'sqlite:///qricklinks.db'
+    )
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Configure basic logging so debugging information is printed to the

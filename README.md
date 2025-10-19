@@ -34,8 +34,10 @@ QRickLinks is a Flask application that combines a traditional URL shortener with
    ```bash
    pip install -r requirements.txt
    ```
-3. Create a `.env` file to hold secrets and deployment specific settings. The
-   helper script generates a strong `SECRET_KEY` automatically:
+3. Create the environment files used by the Flask app, the Vercel CLI and
+   production deployments. The helper script now writes `.env`, `.env.local`,
+   `.env.production` and `.vercel/.env.production.local`, generating a strong
+   `SECRET_KEY` automatically:
    - **Linux/macOS**
      ```bash
      python bootstrap_qricklinks_environment.py --generate-secret
@@ -44,8 +46,8 @@ QRickLinks is a Flask application that combines a traditional URL shortener with
      ```powershell
      py bootstrap_qricklinks_environment.py --generate-secret
      ```
-   The script copies `.env.example` to `.env`. Re-run it with `--force` if you
-   need to regenerate the file.
+   The script copies `.env.example` to all environment variants. Re-run it with
+   `--force` if you need to regenerate the files.
 4. (Optional) export a `SECRET_KEY` so session cookies are signed with your own value
    when you prefer not to use the `.env` file:
    ```bash
@@ -117,6 +119,62 @@ Start the server with:
 ```bash
 ./run_server.sh [-p PORT] [--development]
 ```
+
+### Vercel deployment
+
+Vercel is supported out of the box via `vercel.json` and the serverless entry
+point in `api/index.py`. Use the following table when creating a new Vercel
+project to avoid guesswork:
+
+| Setting              | Value                                                                 |
+|----------------------|-----------------------------------------------------------------------|
+| Framework Preset     | **Other** (custom Flask application)                                   |
+| Install Command      | `pip install -r requirements.txt`                                      |
+| Build Command        | _(leave blank)_ – the `@vercel/python` runtime builds the function for you |
+| Output Directory     | _(leave blank)_ – serverless API responses are streamed dynamically     |
+| Root Directory       | Repository root (accept the default unless you customise the layout)   |
+
+1. **Install the Vercel CLI** so deployments are consistent across platforms:
+   - **Linux/macOS**
+     ```bash
+     npm install --global vercel
+     vercel login
+     ```
+   - **Windows**
+     ```powershell
+     npm install --global vercel
+     vercel login
+     ```
+2. **Link the project** after cloning the repository locally:
+   ```bash
+   vercel link
+   ```
+3. **Generate configuration files** by running the bootstrap helper (already
+   covered above). The script creates `.vercel/.env.production.local` so `vercel
+   dev --prod` mimics the production configuration.
+4. **Populate environment variables** inside Vercel:
+   - Copy the key/value pairs from `.env.production` into the Vercel dashboard
+     (**Settings → Environment Variables**) or use the CLI:
+       ```bash
+       vercel env add SECRET_KEY production
+       vercel env add SQLALCHEMY_DATABASE_URI production
+       # Repeat for GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, THUMIO_API_KEY, PUBLIC_BASE_URL
+       ```
+   - Repeat the commands for the `preview` and `development` environments if
+     required.
+5. **Deploy** using the default flow:
+   ```bash
+   vercel --prod
+   ```
+6. For local verification the Vercel runtime can be emulated via:
+   ```bash
+   vercel dev
+   ```
+
+During serverless execution the application automatically switches to an
+ephemeral SQLite database stored under `/tmp/qricklinks.db` when no
+`SQLALCHEMY_DATABASE_URI` is supplied. Configure a managed database in Vercel
+to persist data between deployments.
 
 The script now creates a Python virtual environment on first run if one is not
 present, so running it directly is enough to install all requirements.
