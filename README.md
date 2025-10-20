@@ -123,8 +123,47 @@ Start the server with:
 ### Vercel deployment
 
 Vercel is supported out of the box via `vercel.json` and the serverless entry
-point in `api/index.py`. Use the following table when creating a new Vercel
-project to avoid guesswork:
+point in `api/index.py`. The new `prepare_qricklinks_vercel_deployment.py`
+helper handles the fussy setup work for you – it generates the environment
+files, checks that the Vercel CLI is installed, prompts for login if required
+and pushes the variables from `.env.production` into your Vercel project.
+
+> **Tip for Raspberry&nbsp;Pi / Linux users:** install Node.js with
+> `sudo apt install nodejs npm` before running the helper so the script can
+> bootstrap the Vercel CLI for you. Windows users can install Node.js from
+> <https://nodejs.org/>.
+
+1. Activate your virtual environment (see the main installation steps above).
+2. Run the helper script:
+   - **Linux/macOS/Raspberry&nbsp;Pi**
+     ```bash
+     python prepare_qricklinks_vercel_deployment.py --include-preview --include-development
+     ```
+   - **Windows (PowerShell)**
+     ```powershell
+     py prepare_qricklinks_vercel_deployment.py --include-preview --include-development
+     ```
+   The script will:
+   - regenerate environment files if needed;
+   - install the Vercel CLI if it is not already present (you may be prompted
+     for your system password when npm performs the global install);
+   - guide you through `vercel login` and `vercel link` if you are not already
+     authenticated;
+   - push the keys from `.env.production` into the production, preview and
+     development environments on Vercel. Values are piped directly so secrets do
+     not appear in the terminal history.
+3. Once the script prints the “Next steps” checklist you can deploy with:
+   ```bash
+   vercel deploy --prod
+   ```
+4. Visit the Vercel dashboard to monitor the build. If the dashboard reports an
+   “unexpected error” after the build begins, re-run `vercel deploy --prod`
+   because the failure is normally transient (the CLI prints the same guidance
+   when it occurs). Contact Vercel support if the retry also fails and include
+   the deployment URL shown by the CLI.
+
+The following table is still useful when creating a project manually – the
+values mirror what the helper configures for you:
 
 | Setting              | Value                                                                 |
 |----------------------|-----------------------------------------------------------------------|
@@ -162,7 +201,7 @@ project to avoid guesswork:
        ```
    - Repeat the commands for the `preview` and `development` environments if
      required.
-5. **Deploy** using the default flow:
+5. **Deploy** using the default flow (after the helper completes):
    ```bash
    vercel --prod
    ```
@@ -170,6 +209,30 @@ project to avoid guesswork:
    ```bash
    vercel dev
    ```
+
+#### Web dashboard setup (no CLI)
+
+If you prefer not to use the helper script you can configure everything inside
+Vercel’s web UI. The steps below mirror what the script performs:
+
+1. Push the repository to GitHub/GitLab/Bitbucket.
+2. Log in to <https://vercel.com/> and choose **Add New Project → Import Git
+   Repository**.
+3. Select the QRickLinks repository and accept the defaults for the project
+   name and framework preset (**Other**).
+4. In the **Build & Output Settings** section set:
+   - **Install Command:** `pip install -r requirements.txt`
+   - **Build Command:** leave blank
+   - **Output Directory:** leave blank
+5. Scroll to **Environment Variables** and add the keys from `.env.production`.
+   Repeat for the `Preview` and `Development` tabs if you rely on those
+   environments. Vercel supports pasting multi-line values directly.
+6. Click **Deploy**. The initial deployment can take a couple of minutes while
+   dependencies are installed.
+7. If the build dashboard reports an unexpected error, press **Retry**. Persistent
+   failures should be raised with Vercel support (include the deployment URL
+   from the dashboard and reference that the CLI returned “An unexpected error
+   happened when running this build”).
 
 During serverless execution the application automatically switches to an
 ephemeral SQLite database stored under `/tmp/qricklinks.db` when no
