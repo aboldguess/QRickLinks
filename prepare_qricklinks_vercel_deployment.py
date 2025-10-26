@@ -36,7 +36,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Sequence
 
 REPO_SENTINEL = Path("qricklinks_app.py")
 DEFAULT_ENV_FILE = Path(".env.production")
@@ -151,6 +151,37 @@ def check_binary_available(binary: str) -> bool:
     return available
 
 
+def run_vercel_command(
+    arguments: Sequence[str], *, check: bool = False, **subprocess_kwargs
+) -> subprocess.CompletedProcess:
+    """Safely execute a Vercel CLI command and surface actionable errors."""
+
+    # We guard the invocation with a PATH check so Windows users receive a clear
+    # installation hint instead of a raw FileNotFoundError stack trace.
+    if not check_binary_available("vercel"):
+        logging.error(
+            "Vercel CLI not located on PATH. Install it via `npm install --global vercel` "
+            "and ensure the npm global bin directory is available before re-running."
+        )
+        raise SystemExit(1)
+
+    command = ["vercel", *arguments]
+    logging.debug("Executing Vercel command: %s", " ".join(command))
+
+    try:
+        # subprocess.run is used in place of check_call so we can optionally
+        # capture output for error reporting while still supporting interactive
+        # flows such as `vercel login` and `vercel link`.
+        return subprocess.run(command, check=check, **subprocess_kwargs)
+    except FileNotFoundError as exc:  # pragma: no cover - defensive on Windows PATH issues
+        logging.error(
+            "Vercel CLI invocation failed because the binary could not be located. "
+            "If you recently installed the CLI, restart your terminal or add the npm "
+            "global bin directory to PATH before re-running."
+        )
+        raise SystemExit(1) from exc
+
+
 def ensure_vercel_cli_installed(skip_install: bool) -> None:
     """Install the Vercel CLI using npm when necessary."""
 
@@ -185,7 +216,7 @@ def ensure_vercel_login() -> None:
     """Prompt the user to log in to Vercel when necessary."""
 
     logging.info("Verifying Vercel authentication status.")
-    whoami = subprocess.run(["vercel", "whoami"], capture_output=True, text=True)
+    whoami = run_vercel_command(["whoami"], capture_output=True, text=True)
     if whoami.returncode == 0:
         logging.info("Already logged in as %s", whoami.stdout.strip())
         return
@@ -193,9 +224,9 @@ def ensure_vercel_login() -> None:
     logging.warning(
         "Not logged in to Vercel CLI. Launching interactive login flow now."
     )
-    subprocess.check_call(["vercel", "login"])
+    run_vercel_command(["login"], check=True)
 
-    whoami = subprocess.run(["vercel", "whoami"], capture_output=True, text=True, check=False)
+    whoami = run_vercel_command(["whoami"], capture_output=True, text=True)
     if whoami.returncode != 0:
         logging.error("Login did not complete successfully. Rerun the script once authenticated.")
         raise SystemExit(1)
@@ -214,12 +245,12 @@ def link_project(project_name: str | None, org_slug: str | None) -> None:
     logging.info(
         "Linking the repository to a Vercel project. Follow any interactive prompts."
     )
-    command = ["vercel", "link"]
+    command = ["link"]
     if project_name:
         command.extend(["--project", project_name])
     if org_slug:
         command.extend(["--org", org_slug])
-    subprocess.check_call(command)
+    run_vercel_command(command, check=True)
 
 
 def load_env_file(path: Path) -> dict[str, str]:
@@ -248,13 +279,14 @@ def push_env_variables(env: dict[str, str], environment: str) -> None:
 
     for key, value in env.items():
         logging.info("Pushing %s to Vercel %s environment", key, environment)
-        process = subprocess.run(
-            ["vercel", "env", "add", key, environment],
-            input=f"{value}\n".encode("utf-8"),
+        process = run_vercel_command(
+            ["env", "add", key, environment],
+            input=f"{value}\n",
             capture_output=True,
+            text=True,
         )
         if process.returncode != 0:
-            stderr = process.stderr.decode("utf-8", errors="ignore")
+            stderr = process.stderr or ""
             logging.error(
                 "Failed to push %s to %s. Output: %s", key, environment, stderr.strip()
             )
