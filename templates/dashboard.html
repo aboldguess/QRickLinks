@@ -1,6 +1,49 @@
+{#
+  User dashboard for creating, managing, and customizing links.
+  Also highlights monthly quota usage and renewal details.
+#}
 {% extends 'base.html' %}
 {% block content %}
 <h2>Create new link</h2>
+<div class="card qr-usage-card mb-4">
+  <div class="card-body">
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start gap-3">
+      <div>
+        <h5 class="mb-1">Monthly Usage &amp; Renewal</h5>
+        <p class="mb-2 text-muted">Stay on top of your QRickLinks quota and plan renewal window.</p>
+        <div class="d-flex flex-column flex-md-row gap-3">
+          <div>
+            <span class="text-uppercase small text-muted">Links remaining</span>
+            <div class="fw-semibold">
+              {% if links_remaining is none %}
+              Unlimited
+              {% else %}
+              {{ links_remaining }} of {{ links_limit }}
+              {% endif %}
+            </div>
+          </div>
+          <div>
+            <span class="text-uppercase small text-muted">Custom slugs remaining</span>
+            <div class="fw-semibold">
+              {% if slugs_remaining is none %}
+              Unlimited
+              {% else %}
+              {{ slugs_remaining }} of {{ slugs_limit }}
+              {% endif %}
+            </div>
+          </div>
+          <div>
+            <span class="text-uppercase small text-muted">Next renewal</span>
+            <div class="fw-semibold">{{ renewal_label }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="text-lg-end">
+        <a class="btn btn-outline-primary" href="{{ url_for('pricing') }}">Upgrade Plan</a>
+      </div>
+    </div>
+  </div>
+</div>
 <form method="post" action="{{ url_for('create_link') }}">
   <!-- Hidden CSRF field prevents form tampering -->
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

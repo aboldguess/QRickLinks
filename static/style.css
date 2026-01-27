@@ -1,18 +1,79 @@
 /*
-  Additional styles used across the application.  The majority of the
-  look-and-feel comes from the Bootswatch theme, but these rules add
-  simple modern touches such as a gradient background and card shadows.
+  Additional styles used across the application.
+  These rules layer brand customization and modern polish on top of Bootswatch.
 */
 
 body {
   font-family: 'Inter', sans-serif;
-  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  background: linear-gradient(135deg, var(--qr-surface) 0%, var(--qr-surface-alt) 100%);
   min-height: 100vh;
+}
+
+.navbar.bg-primary {
+  background: linear-gradient(120deg, var(--qr-primary), var(--qr-secondary)) !important;
+  box-shadow: 0 0.75rem 1.5rem rgba(0, 0, 0, 0.12);
+}
+
+.card,
+.link-card,
+.qr-splash-card {
+  border: var(--qr-border-width) var(--qr-border-style) var(--qr-border-color);
+  border-radius: var(--qr-border-radius);
 }
 
 .link-card {
   box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
-  border: none;
+}
+
+.qr-usage-card {
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0.75rem 1.5rem rgba(79, 70, 229, 0.15);
+}
+
+.btn-primary {
+  box-shadow: 0 0.65rem 1.2rem rgba(79, 70, 229, 0.25);
+}
+
+.btn-outline-secondary {
+  border-width: var(--qr-border-width);
+}
+
+.qr-splash {
+  padding: 2rem 0 3rem;
+}
+
+.qr-badge {
+  background: linear-gradient(120deg, var(--qr-primary), var(--qr-accent));
+  color: #fff;
+  padding: 0.5rem 0.9rem;
+  border-radius: 999px;
+  letter-spacing: 0.04em;
+}
+
+.qr-splash-card {
+  background: #fff;
+  box-shadow: 0 1.5rem 2.5rem rgba(15, 23, 42, 0.15);
+}
+
+.qr-feature-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  font-weight: 500;
+}
+
+.qr-feature-list i {
+  color: var(--qr-accent);
+}
+
+.qr-splash-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1rem;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(15, 23, 42, 0.1);
 }
 
 /* Responsive layout tweaks for QRickLinks */
@@ -62,4 +123,3 @@ body {
 .status-warn { background-color: #ffc107; }
 .status-error { background-color: #dc3545; }
 .status-unknown { background-color: #6c757d; }
-
