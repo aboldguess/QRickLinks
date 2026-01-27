@@ -1,0 +1,53 @@
+{#
+  Public-facing splash screen highlighting QRickLinks value proposition.
+  Uses admin-configured copy and branding variables for customization.
+#}
+{% extends 'base.html' %}
+{% block content %}
+<section class="qr-splash">
+  <div class="row align-items-center g-4">
+    <div class="col-lg-6">
+      <span class="badge qr-badge">Launch Ready</span>
+      <h1 class="display-5 fw-bold mt-3">{{ settings.splash_title }}</h1>
+      <p class="lead text-muted">{{ settings.splash_subtitle }}</p>
+      <div class="d-flex flex-wrap gap-3">
+        <a class="btn btn-primary btn-lg" href="{{ settings.splash_cta_url }}">{{ settings.splash_cta_label }}</a>
+        <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('login') }}">Log In</a>
+      </div>
+      <p class="mt-3 text-muted">Start creating branded QR campaigns in minutes. No credit card required for the free plan.</p>
+      {% if is_preview and current_user.is_authenticated and current_user.is_admin %}
+      <div class="mt-3">
+        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('admin_settings') }}">Edit splash &amp; brand settings</a>
+      </div>
+      {% endif %}
+    </div>
+    <div class="col-lg-6">
+      <div class="card qr-splash-card">
+        <div class="card-body">
+          <h5 class="card-title">Built for growth-focused teams</h5>
+          <p class="text-muted">Everything you need to deploy QR campaigns that look premium and scale effortlessly.</p>
+          <ul class="list-unstyled qr-feature-list">
+            <li><i class="bi bi-check-circle-fill"></i>{{ settings.splash_feature_one }}</li>
+            <li><i class="bi bi-check-circle-fill"></i>{{ settings.splash_feature_two }}</li>
+            <li><i class="bi bi-check-circle-fill"></i>{{ settings.splash_feature_three }}</li>
+          </ul>
+          <div class="qr-splash-metrics">
+            <div>
+              <span class="text-uppercase small text-muted">Setup time</span>
+              <div class="fw-semibold">Under 5 minutes</div>
+            </div>
+            <div>
+              <span class="text-uppercase small text-muted">Brand control</span>
+              <div class="fw-semibold">Admin approved</div>
+            </div>
+            <div>
+              <span class="text-uppercase small text-muted">ROI focus</span>
+              <div class="fw-semibold">Track every scan</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

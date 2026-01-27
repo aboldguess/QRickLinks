@@ -1,12 +1,35 @@
+{#
+  Base layout for admin-only pages, sharing global brand theming.
+  Provides the sidebar navigation for admin workflows.
+#}
 <!doctype html>
 <html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>QRickLinks Admin</title>
+    <title>{{ settings.site_name }} Admin</title>
     {# Match the user facing site with the same theme and font #}
     <link href="https://cdn.jsdelivr.net/npm/bootswatch@5.3.0/dist/lux/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+      :root {
+        --qr-primary: {{ settings.brand_primary_color }};
+        --qr-secondary: {{ settings.brand_secondary_color }};
+        --qr-accent: {{ settings.brand_accent_color }};
+        --qr-surface: {{ settings.brand_surface_color }};
+        --qr-surface-alt: {{ settings.brand_surface_alt_color }};
+        --qr-border-color: {{ settings.brand_border_color }};
+        --qr-border-radius: {{ settings.brand_border_radius }}px;
+        --qr-border-width: {{ settings.brand_border_width }}px;
+        --qr-border-style: {{ settings.brand_border_style }};
+        --bs-primary: var(--qr-primary);
+        --bs-secondary: var(--qr-secondary);
+        --bs-link-color: var(--qr-accent);
+        --bs-link-hover-color: var(--qr-secondary);
+        --bs-border-radius: var(--qr-border-radius);
+        --bs-border-radius-lg: calc(var(--qr-border-radius) + 4px);
+      }
+    </style>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>

@@ -13,6 +13,8 @@ be configured without modifying the source code.
 
 import os
 import random
+import re
+from typing import Optional, Tuple
 from datetime import datetime, timedelta
 
 from flask import (
@@ -243,7 +245,27 @@ class ColourTheme(db.Model):
 class Setting(db.Model):
     """Stores global application settings."""
     id = db.Column(db.Integer, primary_key=True)
+    site_name = db.Column(db.String(120), default='QRickLinks')
     base_url = db.Column(db.String(512), default='http://localhost:5000')
+    brand_primary_color = db.Column(db.String(7), default='#4f46e5')
+    brand_secondary_color = db.Column(db.String(7), default='#0ea5e9')
+    brand_accent_color = db.Column(db.String(7), default='#f97316')
+    brand_surface_color = db.Column(db.String(7), default='#f8fafc')
+    brand_surface_alt_color = db.Column(db.String(7), default='#e2e8f0')
+    brand_border_color = db.Column(db.String(7), default='#e2e8f0')
+    brand_border_radius = db.Column(db.Integer, default=16)
+    brand_border_width = db.Column(db.Integer, default=1)
+    brand_border_style = db.Column(db.String(20), default='solid')
+    splash_title = db.Column(db.String(120), default='QRickLinks')
+    splash_subtitle = db.Column(
+        db.String(240),
+        default='Launch stunning QR campaigns with branded short links, analytics, and team-ready governance.',
+    )
+    splash_cta_label = db.Column(db.String(60), default='Get Started Free')
+    splash_cta_url = db.Column(db.String(255), default='/register')
+    splash_feature_one = db.Column(db.String(120), default='Unlimited branded moments with QR + short links')
+    splash_feature_two = db.Column(db.String(120), default='Live analytics dashboards and export-ready reports')
+    splash_feature_three = db.Column(db.String(120), default='Centralized admin controls for brand consistency')
     # Monthly limit for how many links free users can create
     links_limit = db.Column(db.Integer, default=20)
     custom_colors_limit = db.Column(db.Integer, default=5)
@@ -610,6 +632,68 @@ def get_settings() -> Setting:
         db.session.commit()
     return settings
 
+
+HEX_COLOR_RE = re.compile(r'^#([0-9a-fA-F]{6})$')
+SHORT_HEX_COLOR_RE = re.compile(r'^#([0-9a-fA-F]{3})$')
+BORDER_STYLE_OPTIONS = {'solid', 'dashed', 'dotted', 'double'}
+
+
+def normalize_hex_color(value: str, fallback: str) -> str:
+    """Return a validated hex colour string or a safe fallback."""
+    if not value:
+        return fallback
+    cleaned = value.strip()
+    if not cleaned.startswith('#'):
+        cleaned = f'#{cleaned}'
+    short_match = SHORT_HEX_COLOR_RE.fullmatch(cleaned)
+    if short_match:
+        digits = short_match.group(1)
+        cleaned = f"#{''.join([d * 2 for d in digits])}"
+    if HEX_COLOR_RE.fullmatch(cleaned):
+        return cleaned.lower()
+    return fallback
+
+
+def clamp_int(value: str, fallback: int, min_value: int, max_value: int) -> int:
+    """Coerce a string to an int within an allowed range."""
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return fallback
+    return max(min(parsed, max_value), min_value)
+
+
+def sanitize_border_style(value: str, fallback: str) -> str:
+    """Restrict border styles to a known-safe list."""
+    if not value:
+        return fallback
+    cleaned = value.strip().lower()
+    return cleaned if cleaned in BORDER_STYLE_OPTIONS else fallback
+
+
+def get_quota_snapshot(user: User, feature: str) -> Tuple[Optional[int], Optional[int]]:
+    """Return remaining and limit counts for a quota-bound feature."""
+    tier = user.tier or SubscriptionTier.query.filter_by(name='Free').first()
+    if getattr(tier, f'{feature}_unlimited'):
+        return None, None
+    limit = getattr(tier, f'{feature}_limit') or 0
+    used_field = FEATURE_LIMIT_FIELDS[feature][1]
+    used = getattr(user, used_field)
+    return max(limit - used, 0), limit
+
+
+def format_renewal_date(renewal: Optional[datetime]) -> str:
+    """Format the renewal date for display in the UI."""
+    if not renewal:
+        return 'No renewal scheduled'
+    return renewal.strftime('%d %b %Y')
+
+
+@app.context_processor
+def inject_global_settings():
+    """Expose global settings to every template."""
+    return {'settings': get_settings()}
+
 # --------------------------------------------------------------
 # Password reset email helper
 # --------------------------------------------------------------
@@ -750,20 +834,29 @@ def admin_required(f):
 # Routes
 # ----------------------------
 @app.route('/')
-@login_required
 def index():
-    """Show dashboard with user's links."""
+    """Display the splash page or the user dashboard."""
+    if current_user.is_authenticated and not request.args.get('preview'):
+        return render_dashboard(current_user)
+    return render_template('splash.html', is_preview=current_user.is_authenticated)
+
+
+def render_dashboard(user: User):
+    """Show the signed-in dashboard experience."""
     # Refresh monthly usage counters so quotas are up to date
-    reset_usage_if_needed(current_user)
-    links = Link.query.filter_by(owner=current_user).all()
+    reset_usage_if_needed(user)
+    links = Link.query.filter_by(owner=user).all()
     # Determine if the user still has link creation quota available so the
     # template can disable the form when exhausted.
-    can_create = can_use_feature(current_user, 'links')
-    tier = current_user.tier or SubscriptionTier.query.filter_by(name='Free').first()
+    can_create = can_use_feature(user, 'links')
+    tier = user.tier or SubscriptionTier.query.filter_by(name='Free').first()
     palette_full = tier.full_palette
-    can_colors = can_use_feature(current_user, 'custom_colors')
-    can_styles = can_use_feature(current_user, 'advanced_styles')
-    themes = ColourTheme.query.filter_by(user_id=current_user.id).all()
+    can_colors = can_use_feature(user, 'custom_colors')
+    can_styles = can_use_feature(user, 'advanced_styles')
+    themes = ColourTheme.query.filter_by(user_id=user.id).all()
+    links_remaining, links_limit = get_quota_snapshot(user, 'links')
+    slugs_remaining, slugs_limit = get_quota_snapshot(user, 'custom_slugs')
+    renewal_label = format_renewal_date(user.subscription_renewal)
     return render_template(
         'dashboard.html',
         links=links,
@@ -774,6 +867,11 @@ def index():
         themes=themes,
         limited_palette=LIMITED_PALETTE,
         barcode_types=BARCODE_TYPES,
+        links_remaining=links_remaining,
+        links_limit=links_limit,
+        slugs_remaining=slugs_remaining,
+        slugs_limit=slugs_limit,
+        renewal_label=renewal_label,
     )
 
 
@@ -938,6 +1036,7 @@ def checkout(tier_id: int):
         # Assign the selected tier to the user. Payment handling will be
         # integrated later so this simply records the choice.
         current_user.tier = tier
+        current_user.subscription_renewal = datetime.utcnow() + timedelta(days=30)
         payment = Payment(user=current_user, amount=tier.monthly_price)
         db.session.add(payment)
         db.session.commit()
@@ -954,6 +1053,7 @@ def subscribe():
         # The early access program grants the Pro tier for free
         pro_tier = SubscriptionTier.query.filter_by(name='Pro').first()
         current_user.tier = pro_tier
+        current_user.subscription_renewal = datetime.utcnow() + timedelta(days=30)
         payment = Payment(user=current_user, amount=0.0)
         db.session.add(payment)
         db.session.commit()
@@ -1129,12 +1229,15 @@ def manage_users() -> str:
 
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
-    """Admin login page with fixed credentials."""
+    """Admin login page."""
     if request.method == 'POST':
-        # Admins also authenticate using their email address
-        email = request.form['email']
+        # Admins can authenticate using email or their assigned username
+        identifier = request.form['email'].strip()
         password = request.form['password']
-        user = User.query.filter_by(email=email, is_admin=True).first()
+        user = User.query.filter(
+            (User.email == identifier) | (User.username == identifier),
+            User.is_admin.is_(True),
+        ).first()
         if user and user.check_password(password):
             login_user(user)
             return redirect(url_for('admin_dashboard'))
@@ -1169,7 +1272,62 @@ def admin_settings():
     """Allow the admin to update global site settings."""
     settings = get_settings()
     if request.method == 'POST':
+        settings.site_name = request.form.get('site_name', settings.site_name).strip() or settings.site_name
         settings.base_url = request.form['base_url']
+        settings.brand_primary_color = normalize_hex_color(
+            request.form.get('brand_primary_color'),
+            settings.brand_primary_color,
+        )
+        settings.brand_secondary_color = normalize_hex_color(
+            request.form.get('brand_secondary_color'),
+            settings.brand_secondary_color,
+        )
+        settings.brand_accent_color = normalize_hex_color(
+            request.form.get('brand_accent_color'),
+            settings.brand_accent_color,
+        )
+        settings.brand_surface_color = normalize_hex_color(
+            request.form.get('brand_surface_color'),
+            settings.brand_surface_color,
+        )
+        settings.brand_surface_alt_color = normalize_hex_color(
+            request.form.get('brand_surface_alt_color'),
+            settings.brand_surface_alt_color,
+        )
+        settings.brand_border_color = normalize_hex_color(
+            request.form.get('brand_border_color'),
+            settings.brand_border_color,
+        )
+        settings.brand_border_radius = clamp_int(
+            request.form.get('brand_border_radius'),
+            settings.brand_border_radius,
+            0,
+            48,
+        )
+        settings.brand_border_width = clamp_int(
+            request.form.get('brand_border_width'),
+            settings.brand_border_width,
+            0,
+            6,
+        )
+        settings.brand_border_style = sanitize_border_style(
+            request.form.get('brand_border_style'),
+            settings.brand_border_style,
+        )
+        splash_title = request.form.get('splash_title', '').strip()
+        settings.splash_title = splash_title or settings.splash_title
+        splash_subtitle = request.form.get('splash_subtitle', '').strip()
+        settings.splash_subtitle = splash_subtitle or settings.splash_subtitle
+        splash_cta_label = request.form.get('splash_cta_label', '').strip()
+        settings.splash_cta_label = splash_cta_label or settings.splash_cta_label
+        splash_cta_url = request.form.get('splash_cta_url', '').strip()
+        settings.splash_cta_url = splash_cta_url or settings.splash_cta_url
+        splash_feature_one = request.form.get('splash_feature_one', '').strip()
+        settings.splash_feature_one = splash_feature_one or settings.splash_feature_one
+        splash_feature_two = request.form.get('splash_feature_two', '').strip()
+        settings.splash_feature_two = splash_feature_two or settings.splash_feature_two
+        splash_feature_three = request.form.get('splash_feature_three', '').strip()
+        settings.splash_feature_three = splash_feature_three or settings.splash_feature_three
         settings.links_limit = int(request.form['links_limit'])
         settings.custom_colors_limit = int(request.form['custom_colors_limit'])
         settings.advanced_styles_limit = int(request.form['advanced_styles_limit'])
@@ -1883,6 +2041,7 @@ def initialize_database() -> None:
         # Settings table columns for paywall quotas
         setting_columns = [row[1] for row in db.session.execute(text("PRAGMA table_info(setting)")).fetchall()]
         setting_map = {
+            'site_name': "VARCHAR(120) DEFAULT 'QRickLinks'",
             'links_limit': 'INTEGER DEFAULT 20',
             'custom_colors_limit': 'INTEGER DEFAULT 5',
             'advanced_styles_limit': 'INTEGER DEFAULT 5',
@@ -1891,6 +2050,22 @@ def initialize_database() -> None:
             'logo_embedding_limit': 'INTEGER DEFAULT 1',
             'analytics_limit': 'INTEGER DEFAULT 100',
             'custom_slugs_limit': 'INTEGER DEFAULT 5',
+            'brand_primary_color': "VARCHAR(7) DEFAULT '#4f46e5'",
+            'brand_secondary_color': "VARCHAR(7) DEFAULT '#0ea5e9'",
+            'brand_accent_color': "VARCHAR(7) DEFAULT '#f97316'",
+            'brand_surface_color': "VARCHAR(7) DEFAULT '#f8fafc'",
+            'brand_surface_alt_color': "VARCHAR(7) DEFAULT '#e2e8f0'",
+            'brand_border_color': "VARCHAR(7) DEFAULT '#e2e8f0'",
+            'brand_border_radius': 'INTEGER DEFAULT 16',
+            'brand_border_width': 'INTEGER DEFAULT 1',
+            'brand_border_style': "VARCHAR(20) DEFAULT 'solid'",
+            'splash_title': "VARCHAR(120) DEFAULT 'QRickLinks'",
+            'splash_subtitle': "VARCHAR(240) DEFAULT 'Launch stunning QR campaigns with branded short links, analytics, and team-ready governance.'",
+            'splash_cta_label': "VARCHAR(60) DEFAULT 'Get Started Free'",
+            'splash_cta_url': "VARCHAR(255) DEFAULT '/register'",
+            'splash_feature_one': "VARCHAR(120) DEFAULT 'Unlimited branded moments with QR + short links'",
+            'splash_feature_two': "VARCHAR(120) DEFAULT 'Live analytics dashboards and export-ready reports'",
+            'splash_feature_three': "VARCHAR(120) DEFAULT 'Centralized admin controls for brand consistency'",
             'smtp_server': "VARCHAR(120) DEFAULT ''",
             'smtp_port': 'INTEGER DEFAULT 587',
             'smtp_username': "VARCHAR(120) DEFAULT ''",
@@ -1913,14 +2088,22 @@ def initialize_database() -> None:
         # Ensure a settings row is present
         get_settings()
 
-        # Create the administrator account if it doesn't already exist
+        # Create the administrator accounts if they don't already exist
         if not User.query.filter_by(email='admin@example.com', is_admin=True).first():
             # Use the same value for email and username to keep older code
             # functional while relying solely on the email for authentication.
             admin = User(username='admin@example.com', email='admin@example.com', is_admin=True)
             admin.set_password('Admin12345')
             db.session.add(admin)
-            db.session.commit()
+        if not User.query.filter_by(username='philadmin', is_admin=True).first():
+            phil_admin = User(
+                username='philadmin',
+                email='philadmin@qricklinks.com',
+                is_admin=True,
+            )
+            phil_admin.set_password('Admin12345')
+            db.session.add(phil_admin)
+        db.session.commit()
 
         # Create some default subscription tiers if none exist.  The free tier
         # costs nothing while the paid tiers include monthly and yearly options

@@ -1,9 +1,17 @@
+{#
+  Admin settings page for configuring quotas, branding, and splash content.
+  Structured into sections so admins can quickly scan and update the fields.
+#}
 {% extends 'admin_base.html' %}
 {% block content %}
 <h2>Global Settings</h2>
 <form method="post">
   <!-- Hidden token protects admin settings form -->
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="mb-3">
+    <label for="site_name" class="form-label">Site Name</label>
+    <input type="text" class="form-control" id="site_name" name="site_name" value="{{ settings.site_name }}" required>
+  </div>
   <div class="mb-3">
     <label for="base_url" class="form-label">Base URL</label>
     <!--
@@ -12,6 +20,90 @@
       server side in the same way as regular links.
     -->
     <input type="text" class="form-control" id="base_url" name="base_url" value="{{ settings.base_url }}" required>
+  </div>
+  <h3 class="mt-4">Brand Identity</h3>
+  <p class="text-muted">Use these controls to make QRickLinks match your brand palette and visual style.</p>
+  <div class="row g-3">
+    <div class="col-md-4">
+      <label for="brand_primary_color" class="form-label">Primary Colour</label>
+      <input type="color" class="form-control form-control-color" id="brand_primary_color" name="brand_primary_color" value="{{ settings.brand_primary_color }}">
+    </div>
+    <div class="col-md-4">
+      <label for="brand_secondary_color" class="form-label">Secondary Colour</label>
+      <input type="color" class="form-control form-control-color" id="brand_secondary_color" name="brand_secondary_color" value="{{ settings.brand_secondary_color }}">
+    </div>
+    <div class="col-md-4">
+      <label for="brand_accent_color" class="form-label">Accent Colour</label>
+      <input type="color" class="form-control form-control-color" id="brand_accent_color" name="brand_accent_color" value="{{ settings.brand_accent_color }}">
+    </div>
+    <div class="col-md-6">
+      <label for="brand_surface_color" class="form-label">Surface Colour</label>
+      <input type="color" class="form-control form-control-color" id="brand_surface_color" name="brand_surface_color" value="{{ settings.brand_surface_color }}">
+    </div>
+    <div class="col-md-6">
+      <label for="brand_surface_alt_color" class="form-label">Surface Accent</label>
+      <input type="color" class="form-control form-control-color" id="brand_surface_alt_color" name="brand_surface_alt_color" value="{{ settings.brand_surface_alt_color }}">
+    </div>
+    <div class="col-md-4">
+      <label for="brand_border_color" class="form-label">Border Colour</label>
+      <input type="color" class="form-control form-control-color" id="brand_border_color" name="brand_border_color" value="{{ settings.brand_border_color }}">
+    </div>
+    <div class="col-md-4">
+      <label for="brand_border_style" class="form-label">Border Style</label>
+      <select class="form-select" id="brand_border_style" name="brand_border_style">
+        <option value="solid" {% if settings.brand_border_style == 'solid' %}selected{% endif %}>Solid</option>
+        <option value="dashed" {% if settings.brand_border_style == 'dashed' %}selected{% endif %}>Dashed</option>
+        <option value="dotted" {% if settings.brand_border_style == 'dotted' %}selected{% endif %}>Dotted</option>
+        <option value="double" {% if settings.brand_border_style == 'double' %}selected{% endif %}>Double</option>
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label for="brand_border_width" class="form-label">Border Width</label>
+      <input type="number" class="form-control" id="brand_border_width" name="brand_border_width" value="{{ settings.brand_border_width }}" min="0" max="6">
+    </div>
+    <div class="col-md-2">
+      <label for="brand_border_radius" class="form-label">Corner Radius</label>
+      <input type="number" class="form-control" id="brand_border_radius" name="brand_border_radius" value="{{ settings.brand_border_radius }}" min="0" max="48">
+    </div>
+  </div>
+  <h3 class="mt-4">Splash Screen Content</h3>
+  <p class="text-muted">Update the copy shown to visitors before they log in.</p>
+  <div class="mb-3">
+    <label for="splash_title" class="form-label">Headline</label>
+    <input type="text" class="form-control" id="splash_title" name="splash_title" value="{{ settings.splash_title }}">
+  </div>
+  <div class="mb-3">
+    <label for="splash_subtitle" class="form-label">Subheading</label>
+    <textarea class="form-control" id="splash_subtitle" name="splash_subtitle" rows="2">{{ settings.splash_subtitle }}</textarea>
+  </div>
+  <div class="row g-3">
+    <div class="col-md-6">
+      <label for="splash_cta_label" class="form-label">Primary CTA Label</label>
+      <input type="text" class="form-control" id="splash_cta_label" name="splash_cta_label" value="{{ settings.splash_cta_label }}">
+    </div>
+    <div class="col-md-6">
+      <label for="splash_cta_url" class="form-label">Primary CTA Link</label>
+      <input type="text" class="form-control" id="splash_cta_url" name="splash_cta_url" value="{{ settings.splash_cta_url }}">
+    </div>
+  </div>
+  <div class="row g-3 mt-1">
+    <div class="col-md-4">
+      <label for="splash_feature_one" class="form-label">Feature 1</label>
+      <input type="text" class="form-control" id="splash_feature_one" name="splash_feature_one" value="{{ settings.splash_feature_one }}">
+    </div>
+    <div class="col-md-4">
+      <label for="splash_feature_two" class="form-label">Feature 2</label>
+      <input type="text" class="form-control" id="splash_feature_two" name="splash_feature_two" value="{{ settings.splash_feature_two }}">
+    </div>
+    <div class="col-md-4">
+      <label for="splash_feature_three" class="form-label">Feature 3</label>
+      <input type="text" class="form-control" id="splash_feature_three" name="splash_feature_three" value="{{ settings.splash_feature_three }}">
+    </div>
+  </div>
+  <div class="mt-3">
+    <a class="btn btn-outline-primary" href="{{ url_for('index', preview=1) }}" target="_blank">
+      Preview Splash Screen
+    </a>
   </div>
   <h3 class="mt-4">Free Monthly Usage Limits</h3>
   <div class="mb-3">
