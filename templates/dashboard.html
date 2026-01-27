@@ -158,7 +158,7 @@
             {% else %}
             <select id="fill_color{{ link.id }}" name="fill_color" class="form-select" {% if not can_colors %}disabled{% endif %}>
               {% for col in limited_palette %}
-              <option value="{{ col }}" style="background-color: {{ col }};" {% if link.fill_color==col %}selected{% endif %}>{{ col }}</option>
+              <option value="{{ col }}" style="background-color: {{ col }};" {% if link.fill_color == col %}selected{% endif %}>{{ col }}</option>
               {% endfor %}
             </select>
             {% endif %}
@@ -170,7 +170,7 @@
             {% else %}
             <select id="back_color{{ link.id }}" name="back_color" class="form-select" {% if not can_colors %}disabled{% endif %}>
               {% for col in limited_palette %}
-              <option value="{{ col }}" style="background-color: {{ col }};" {% if link.back_color==col %}selected{% endif %}>{{ col }}</option>
+              <option value="{{ col }}" style="background-color: {{ col }};" {% if link.back_color == col %}selected{% endif %}>{{ col }}</option>
               {% endfor %}
             </select>
             {% endif %}
