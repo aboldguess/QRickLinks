@@ -14,6 +14,7 @@ be configured without modifying the source code.
 import os
 import random
 import re
+import secrets
 from typing import Optional, Tuple
 from datetime import datetime, timedelta
 
@@ -36,7 +37,7 @@ from flask_login import LoginManager, login_user, login_required, logout_user, c
 from flask_wtf import CSRFProtect
 from itsdangerous import URLSafeTimedSerializer
 from flask_dance.contrib.google import make_google_blueprint, google
-from sqlalchemy import func, text  # text() allows execution of raw SQL strings
+from sqlalchemy import func, text, desc  # text() allows execution of raw SQL strings
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -148,6 +149,10 @@ class User(UserMixin, db.Model):
     billing_card_last4 = db.Column(db.String(4))
     billing_expiry = db.Column(db.String(7))  # Stored as MM/YYYY
     subscription_renewal = db.Column(db.DateTime)
+    # Admin-managed bonus credits that extend the user's monthly link quota.
+    bonus_credits = db.Column(db.Integer, default=0)
+    # Timestamp of the most recent admin-issued temporary password.
+    temp_password_set_at = db.Column(db.DateTime)
     # Reference to the user's current subscription tier. This is null when
     # the database is first migrated and users will be assigned the free tier
     # automatically on login or registration.
@@ -182,6 +187,8 @@ class Link(db.Model):
     # produces an actual QR Code. Other values are placeholders for future
     # expansion.
     barcode_type = db.Column(db.String(20), default='qr')
+    # Store the logo filename so the UI can warn about SVG export limitations.
+    logo_filename = db.Column(db.String(255))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     visit_count = db.Column(db.Integer, default=0)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
@@ -308,6 +315,12 @@ class SubscriptionTier(db.Model):
     # Cost of the subscription when billed yearly
     yearly_price = db.Column(db.Float, default=0.0)
     highlight_text = db.Column(db.String(100))
+    # Optional special offer configuration.
+    special_offer_name = db.Column(db.String(120))
+    special_offer_monthly_price = db.Column(db.Float)
+    special_offer_yearly_price = db.Column(db.Float)
+    special_offer_active = db.Column(db.Boolean, default=False)
+    special_offer_expires_at = db.Column(db.DateTime)
     # Monthly link creation quota per tier
     links_limit = db.Column(db.Integer)
     links_unlimited = db.Column(db.Boolean, default=False)
@@ -411,20 +424,57 @@ def get_mac_address(ip: str) -> str | None:
     return None
 
 
-def lookup_geo(ip: str) -> tuple[float, float] | None:
-    """Return latitude and longitude for the given IP using ip-api.com."""
+def lookup_location_details(ip: str) -> dict | None:
+    """Return location details for the given IP using ip-api.com."""
     try:
         # ip-api's free tier only works over HTTP. Perform the request server-side
         # so browsers viewing the dashboard don't run into mixed content issues.
         resp = requests.get(f"http://ip-api.com/json/{ip}", timeout=5)
         data = resp.json()
         if data.get("status") == "success":
-            return data.get("lat"), data.get("lon")
+            city = data.get("city") or ""
+            region = data.get("regionName") or ""
+            country = data.get("country") or ""
+            label_parts = [part for part in (city, region, country) if part]
+            return {
+                "lat": data.get("lat"),
+                "lon": data.get("lon"),
+                "label": ", ".join(label_parts) if label_parts else "Unknown location",
+            }
     except Exception:
         # Network errors or malformed responses are ignored so location
         # markers simply won't appear for the problematic IP.
         pass
     return None
+
+
+def lookup_geo(ip: str) -> tuple[float, float] | None:
+    """Return latitude and longitude for the given IP using ip-api.com."""
+    details = lookup_location_details(ip)
+    if details and details.get("lat") and details.get("lon"):
+        return details["lat"], details["lon"]
+    return None
+
+
+def build_static_map_url(locations: list[dict]) -> str | None:
+    """Return a static map thumbnail URL for the given locations."""
+    if not locations:
+        return None
+    markers = []
+    for loc in locations:
+        lat = loc.get("lat")
+        lon = loc.get("lon")
+        if lat is None or lon is None:
+            continue
+        markers.append(f"{lat},{lon},red-pushpin")
+    if not markers:
+        return None
+    center = f"{locations[0]['lat']},{locations[0]['lon']}"
+    marker_param = "|".join(markers)
+    return (
+        "https://staticmap.openstreetmap.de/staticmap.php"
+        f"?center={center}&zoom=2&size=240x140&maptype=mapnik&markers={marker_param}"
+    )
 
 
 def run_site_check(link: 'Link', fix: bool = False) -> dict:
@@ -472,6 +522,43 @@ def run_site_check(link: 'Link', fix: bool = False) -> dict:
             pass
 
     return result
+
+
+def get_link_dashboard_stats(link: Link) -> dict:
+    """Return summary statistics for displaying a link on the dashboard."""
+    total_clicks = link.visit_count
+    unique_clicks = (
+        db.session.query(func.count(func.distinct(Visit.ip)))
+        .filter(Visit.link_id == link.id, Visit.ip.isnot(None))
+        .scalar()
+        or 0
+    )
+    top_ips = (
+        db.session.query(Visit.ip, func.count(Visit.id).label("hits"))
+        .filter(Visit.link_id == link.id, Visit.ip.isnot(None))
+        .group_by(Visit.ip)
+        .order_by(desc("hits"))
+        .limit(5)
+        .all()
+    )
+    locations: list[dict] = []
+    most_common_location = "No location data yet"
+    for ip, _hits in top_ips:
+        details = lookup_location_details(ip)
+        if not details:
+            continue
+        if not locations:
+            most_common_location = details.get("label", most_common_location)
+        locations.append(details)
+        if len(locations) >= 3:
+            break
+    map_url = build_static_map_url(locations)
+    return {
+        "total_clicks": total_clicks,
+        "unique_clicks": unique_clicks,
+        "most_common_location": most_common_location,
+        "map_url": map_url,
+    }
 
 
 def create_qr_code(
@@ -663,6 +750,27 @@ def clamp_int(value: str, fallback: int, min_value: int, max_value: int) -> int:
     return max(min(parsed, max_value), min_value)
 
 
+def parse_optional_float(value: str) -> float | None:
+    """Parse an optional float input value."""
+    if value is None or str(value).strip() == "":
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def parse_optional_date(value: str) -> datetime | None:
+    """Parse a YYYY-MM-DD date string into a datetime at end of day."""
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return parsed.replace(hour=23, minute=59, second=59, microsecond=0)
+
+
 def sanitize_border_style(value: str, fallback: str) -> str:
     """Restrict border styles to a known-safe list."""
     if not value:
@@ -673,10 +781,9 @@ def sanitize_border_style(value: str, fallback: str) -> str:
 
 def get_quota_snapshot(user: User, feature: str) -> Tuple[Optional[int], Optional[int]]:
     """Return remaining and limit counts for a quota-bound feature."""
-    tier = user.tier or SubscriptionTier.query.filter_by(name='Free').first()
-    if getattr(tier, f'{feature}_unlimited'):
+    unlimited, limit = get_effective_feature_limit(user, feature)
+    if unlimited:
         return None, None
-    limit = getattr(tier, f'{feature}_limit') or 0
     used_field = FEATURE_LIMIT_FIELDS[feature][1]
     used = getattr(user, used_field)
     return max(limit - used, 0), limit
@@ -765,6 +872,84 @@ FEATURE_LIMIT_FIELDS = {
     'custom_slugs': ('custom_slugs_limit', 'custom_slugs_used'),
 }
 
+FEATURE_LABELS = {
+    'links': 'links',
+    'custom_colors': 'custom colours',
+    'advanced_styles': 'advanced styles',
+    'code_formats': 'code formats',
+    'advanced_formats': 'advanced formats',
+    'logo_embedding': 'logo embeds',
+    'analytics': 'analytics views',
+    'custom_slugs': 'custom slugs',
+}
+
+
+def get_tier_for_user(user: User) -> SubscriptionTier:
+    """Return the active tier for the given user."""
+    return user.tier or SubscriptionTier.query.filter_by(name='Free').first()
+
+
+def get_effective_feature_limit(user: User, feature: str) -> tuple[bool, int]:
+    """Return (unlimited, limit) for a feature after applying bonus credits."""
+    tier = get_tier_for_user(user)
+    unlimited = bool(getattr(tier, f'{feature}_unlimited'))
+    limit = getattr(tier, f'{feature}_limit') or 0
+    if feature == 'links':
+        limit += max(user.bonus_credits or 0, 0)
+    return unlimited, limit
+
+
+def get_next_tier(current_tier: SubscriptionTier) -> SubscriptionTier | None:
+    """Return the next tier in ascending order or None if already highest."""
+    tiers = SubscriptionTier.query.filter_by(archived=False).order_by(SubscriptionTier.id).all()
+    for idx, tier in enumerate(tiers):
+        if tier.id == current_tier.id and idx + 1 < len(tiers):
+            return tiers[idx + 1]
+    return None
+
+
+def is_special_offer_active(tier: SubscriptionTier) -> bool:
+    """Return True if the tier has an active, unexpired special offer."""
+    if not tier.special_offer_active:
+        return False
+    if tier.special_offer_expires_at and tier.special_offer_expires_at < datetime.utcnow():
+        return False
+    return True
+
+
+def get_offer_price(tier: SubscriptionTier, yearly: bool = False) -> float | None:
+    """Return the applicable offer price for the tier if active."""
+    if not is_special_offer_active(tier):
+        return None
+    return tier.special_offer_yearly_price if yearly else tier.special_offer_monthly_price
+
+
+def flash_upgrade_prompt(user: User, feature: str) -> None:
+    """Show an upgrade prompt when a feature quota is exceeded."""
+    tier = get_tier_for_user(user)
+    next_tier = get_next_tier(tier)
+    feature_label = FEATURE_LABELS.get(feature, feature.replace('_', ' '))
+    if not next_tier:
+        message = (
+            f"Want more {feature_label}? Contact support to extend your quota."
+        )
+        flash(message, "upgrade")
+        return
+    current_unlimited, current_limit = get_effective_feature_limit(user, feature)
+    next_unlimited = bool(getattr(next_tier, f'{feature}_unlimited'))
+    next_limit = getattr(next_tier, f'{feature}_limit') or 0
+    if next_unlimited:
+        diff_label = "unlimited"
+    else:
+        diff = max(next_limit - (0 if current_unlimited else current_limit), 0)
+        diff_label = str(diff)
+    message = (
+        f"Want more {feature_label}? Upgrade to {next_tier.name} to get "
+        f"{diff_label} more {feature_label} per month."
+        f"<div class='mt-2'><a class='btn btn-sm btn-primary' href='{url_for('pricing')}'>Upgrade to {next_tier.name}</a></div>"
+    )
+    flash(message, "upgrade")
+
 
 def reset_usage_if_needed(user: User) -> None:
     """Reset counters when a new month begins."""
@@ -787,10 +972,9 @@ def reset_usage_if_needed(user: User) -> None:
 def can_use_feature(user: User, feature: str) -> bool:
     """Return True if the user has remaining quota for the feature."""
     reset_usage_if_needed(user)
-    tier = user.tier or SubscriptionTier.query.filter_by(name='Free').first()
-    if getattr(tier, f'{feature}_unlimited'):
+    unlimited, limit = get_effective_feature_limit(user, feature)
+    if unlimited:
         return True
-    limit = getattr(tier, f'{feature}_limit') or 0
     used_field = FEATURE_LIMIT_FIELDS[feature][1]
     used = getattr(user, used_field)
     return used < limit
@@ -801,8 +985,8 @@ def check_feature_usage(user: User, feature: str) -> bool:
     if not can_use_feature(user, feature):
         return False
 
-    tier = user.tier or SubscriptionTier.query.filter_by(name='Free').first()
-    if not getattr(tier, f'{feature}_unlimited'):
+    unlimited, _ = get_effective_feature_limit(user, feature)
+    if not unlimited:
         used_field = FEATURE_LIMIT_FIELDS[feature][1]
         used = getattr(user, used_field)
         setattr(user, used_field, used + 1)
@@ -857,9 +1041,11 @@ def render_dashboard(user: User):
     links_remaining, links_limit = get_quota_snapshot(user, 'links')
     slugs_remaining, slugs_limit = get_quota_snapshot(user, 'custom_slugs')
     renewal_label = format_renewal_date(user.subscription_renewal)
+    link_stats = {link.id: get_link_dashboard_stats(link) for link in links}
     return render_template(
         'dashboard.html',
         links=links,
+        link_stats=link_stats,
         can_create=can_create,
         palette_full=palette_full,
         can_colors=can_colors,
@@ -1023,8 +1209,12 @@ def pricing():
     # Pass the built-in ``getattr`` so Jinja can dynamically access
     # tier limits/unlimited flags in the template.  Without this the
     # templates raise an UndefinedError for ``getattr``.
-    return render_template('pricing.html', tiers=tiers, features=features,
-                           getattr=getattr)
+    return render_template(
+        'pricing.html',
+        tiers=tiers,
+        features=features,
+        getattr=getattr,
+    )
 
 
 @app.route('/checkout/<int:tier_id>', methods=['GET', 'POST'])
@@ -1033,6 +1223,7 @@ def checkout(tier_id: int):
     """Placeholder checkout page for purchasing a subscription tier."""
     # Look up the selected tier or return 404 if it doesn't exist
     tier = SubscriptionTier.query.get_or_404(tier_id)
+    effective_price = get_offer_price(tier) or tier.monthly_price
     if request.method == 'POST':
         # Perform a fake transaction. The real payment logic will be added
         # later using Stripe.
@@ -1040,12 +1231,17 @@ def checkout(tier_id: int):
         # integrated later so this simply records the choice.
         current_user.tier = tier
         current_user.subscription_renewal = datetime.utcnow() + timedelta(days=30)
-        payment = Payment(user=current_user, amount=tier.monthly_price)
+        payment = Payment(user=current_user, amount=effective_price)
         db.session.add(payment)
         db.session.commit()
         flash(f'Subscribed to {tier.name}!')
         return redirect(url_for('index'))
-    return render_template('checkout.html', tier=tier)
+    return render_template(
+        'checkout.html',
+        tier=tier,
+        effective_price=effective_price,
+        offer_active=is_special_offer_active(tier),
+    )
 
 
 @app.route('/subscribe', methods=['GET', 'POST'])
@@ -1401,6 +1597,46 @@ def admin_users():
         )
     return render_template("admin_users.html", users=user_rows)
 
+
+@app.route('/admin/users/<int:user_id>', methods=['GET', 'POST'])
+@admin_required
+def admin_user_detail(user_id: int):
+    """Show and edit details for a single user."""
+    user = User.query.get_or_404(user_id)
+    if request.method == 'POST':
+        action = request.form.get('action')
+        if action == 'add_credits':
+            amount = parse_optional_float(request.form.get('bonus_credits'))
+            if amount is None:
+                flash('Enter a valid credit amount.')
+            else:
+                credit_amount = max(int(amount), 0)
+                user.bonus_credits = int(user.bonus_credits or 0) + credit_amount
+                db.session.commit()
+                flash('Bonus credits added.')
+        elif action == 'temp_password':
+            temp_password = request.form.get('temporary_password', '').strip()
+            if not temp_password:
+                temp_password = secrets.token_urlsafe(10)
+            user.set_password(temp_password)
+            user.temp_password_set_at = datetime.utcnow()
+            db.session.commit()
+            flash(f"Temporary password set: {temp_password}")
+        return redirect(url_for('admin_user_detail', user_id=user.id))
+    link_count = Link.query.filter_by(owner=user).count()
+    total_clicks = (
+        db.session.query(func.sum(Link.visit_count))
+        .filter_by(user_id=user.id)
+        .scalar()
+        or 0
+    )
+    return render_template(
+        "admin_user_detail.html",
+        user=user,
+        link_count=link_count,
+        total_clicks=total_clicks,
+    )
+
 @app.route('/admin/tiers', methods=['GET', 'POST'])
 @admin_required
 def admin_tiers():
@@ -1434,6 +1670,21 @@ def admin_tiers():
                 request.form.get(f'{tier.id}_yearly_price', tier.yearly_price or 0)
             )
             tier.highlight_text = request.form.get(f'{tier.id}_highlight_text', '')
+            tier.special_offer_name = request.form.get(
+                f'{tier.id}_special_offer_name', ''
+            ).strip() or None
+            tier.special_offer_monthly_price = parse_optional_float(
+                request.form.get(f'{tier.id}_special_offer_monthly_price')
+            )
+            tier.special_offer_yearly_price = parse_optional_float(
+                request.form.get(f'{tier.id}_special_offer_yearly_price')
+            )
+            tier.special_offer_active = bool(
+                request.form.get(f'{tier.id}_special_offer_active')
+            )
+            tier.special_offer_expires_at = parse_optional_date(
+                request.form.get(f'{tier.id}_special_offer_expires_at')
+            )
             palette_val = request.form.get(f'{tier.id}_palette', 'limited')
             tier.full_palette = palette_val == 'full'
             for feat in features:
@@ -1482,7 +1733,7 @@ def create_link():
     original_url = normalize_url(request.form['original_url'])
     # Enforce the monthly link creation limit for free users
     if not check_feature_usage(current_user, 'links'):
-        flash('Link creation quota exceeded')
+        flash_upgrade_prompt(current_user, 'links')
         return redirect(url_for('index'))
     # Use the submitted slug when provided. Falling back to a randomly
     # generated "adjective.adjective.noun" slug keeps behaviour unchanged
@@ -1492,7 +1743,7 @@ def create_link():
     # Only deduct custom slug quota when a slug is explicitly provided.
     # Random slugs generated by the server remain free to encourage usage.
     if submitted_slug and not check_feature_usage(current_user, 'custom_slugs'):
-        flash('Custom slug quota exceeded')
+        flash_upgrade_prompt(current_user, 'custom_slugs')
         return redirect(url_for('index'))
     short_code = generate_short_code()
 
@@ -1510,28 +1761,25 @@ def create_link():
     logo_filename = None
 
     if logo_file and logo_file.filename and not check_feature_usage(current_user, 'logo_embedding'):
-        flash('Logo embedding quota exceeded')
+        flash_upgrade_prompt(current_user, 'logo_embedding')
         return redirect(url_for('index'))
 
     # Free tier limits for premium features
     if (fill_color != "#000000" or back_color != "#FFFFFF") and not check_feature_usage(current_user, 'custom_colors'):
-        flash('Custom colours quota exceeded')
+        flash_upgrade_prompt(current_user, 'custom_colors')
         return redirect(url_for('index'))
     if (
         box_size != 10
         or border != 4
         or error_correction != 'M'
     ) and not check_feature_usage(current_user, 'advanced_styles'):
-        flash('Advanced styling quota exceeded')
+        flash_upgrade_prompt(current_user, 'advanced_styles')
         return redirect(url_for('index'))
     if pattern != 'square' and not check_feature_usage(current_user, 'code_formats'):
-        flash('Code formats quota exceeded')
+        flash_upgrade_prompt(current_user, 'code_formats')
         return redirect(url_for('index'))
     if barcode_type != 'qr' and not check_feature_usage(current_user, 'advanced_formats'):
-        flash('Advanced formats quota exceeded')
-        return redirect(url_for('index'))
-    if logo_file and logo_file.filename and not check_feature_usage(current_user, 'logo_embedding'):
-        flash('Logo embedding quota exceeded')
+        flash_upgrade_prompt(current_user, 'advanced_formats')
         return redirect(url_for('index'))
 
     # Ensure slugs and codes are unique. If the requested slug already exists
@@ -1574,6 +1822,7 @@ def create_link():
         short_code=short_code,
         original_url=original_url,
         qr_filename=qr_filename,
+        logo_filename=logo_filename,
         # Persist customisation options so the user can refine them later
         fill_color=fill_color,
         back_color=back_color,
@@ -1632,6 +1881,8 @@ def check_site(link_id: int):
     if link.owner != current_user:
         abort(403)
     fix = request.args.get('fix') == '1'
+    if fix and not current_user.is_admin:
+        abort(403)
     result = run_site_check(link, fix)
     return jsonify(result)
 
@@ -1698,33 +1949,33 @@ def customize_link(link_id: int):
     if (
         link.fill_color != fill_color or link.back_color != back_color
     ) and not check_feature_usage(current_user, 'custom_colors'):
-        flash('Custom colours quota exceeded')
+        flash_upgrade_prompt(current_user, 'custom_colors')
         return redirect(url_for('index'))
     if link.pattern != pattern and not check_feature_usage(current_user, 'code_formats'):
-        flash('Code formats quota exceeded')
+        flash_upgrade_prompt(current_user, 'code_formats')
         return redirect(url_for('index'))
     if link.barcode_type != barcode_type and not check_feature_usage(current_user, 'advanced_formats'):
-        flash('Advanced formats quota exceeded')
+        flash_upgrade_prompt(current_user, 'advanced_formats')
         return redirect(url_for('index'))
 
     if (
         link.box_size != box_size or link.border != border or
         link.error_correction != error_correction
     ) and not check_feature_usage(current_user, 'advanced_styles'):
-        flash('Advanced styling quota exceeded')
+        flash_upgrade_prompt(current_user, 'advanced_styles')
         return redirect(url_for('index'))
 
     tier = current_user.tier or SubscriptionTier.query.filter_by(name='Free').first()
     if not tier.full_palette:
         if fill_color not in LIMITED_PALETTE or back_color not in LIMITED_PALETTE:
-            flash('Palette limited to 16 colours')
+            flash_upgrade_prompt(current_user, 'custom_colors')
             return redirect(url_for('index'))
     logo_file = request.files.get("logo")
     logo_filename = None
 
     if logo_file and logo_file.filename:
         if not check_feature_usage(current_user, 'logo_embedding'):
-            flash('Logo embedding quota exceeded')
+            flash_upgrade_prompt(current_user, 'logo_embedding')
             return redirect(url_for('index'))
         # Store the uploaded logo file under a predictable name
         logo_filename = f"{link.slug}_{secure_filename(logo_file.filename)}"
@@ -1760,6 +2011,8 @@ def customize_link(link_id: int):
     link.pattern = pattern
     link.error_correction = error_correction
     link.barcode_type = barcode_type
+    if logo_filename:
+        link.logo_filename = logo_filename
     db.session.commit()
     flash('QR code updated')
     return redirect(url_for('index'))
@@ -1775,6 +2028,7 @@ def link_details(link_id: int):
     # Determine whether analytics quota permits viewing the details.  Usage is
     # only recorded when access is granted.
     if not check_feature_usage(current_user, 'analytics'):
+        flash_upgrade_prompt(current_user, 'analytics')
         return render_template('link_details.html', link=link, premium=False)
 
     # Retrieve all visits for this link ordered newest first
@@ -1853,6 +2107,11 @@ def initialize_database() -> None:
         tier_map = {
             'monthly_price': 'FLOAT DEFAULT 0.0',
             'yearly_price': 'FLOAT DEFAULT 0.0',
+            'special_offer_name': 'VARCHAR(120)',
+            'special_offer_monthly_price': 'FLOAT',
+            'special_offer_yearly_price': 'FLOAT',
+            'special_offer_active': 'BOOLEAN DEFAULT 0',
+            'special_offer_expires_at': 'DATETIME',
             'links_limit': 'INTEGER',
             'links_unlimited': 'BOOLEAN DEFAULT 0',
             'custom_colors_limit': 'INTEGER',
@@ -1909,6 +2168,8 @@ def initialize_database() -> None:
             'tier_id': 'INTEGER',
             'email': 'VARCHAR(120)',
             'google_id': 'VARCHAR(255)',
+            'bonus_credits': 'INTEGER DEFAULT 0',
+            'temp_password_set_at': 'DATETIME',
         }
         added_user_cols = False
         for column, ddl in user_map.items():
@@ -1992,6 +2253,7 @@ def initialize_database() -> None:
             "pattern": "VARCHAR(10) DEFAULT 'square'",
             "error_correction": "VARCHAR(1) DEFAULT 'M'",
             "barcode_type": "VARCHAR(20) DEFAULT 'qr'",
+            "logo_filename": "VARCHAR(255)",
         }
 
         added_custom_columns = False
@@ -2170,4 +2432,4 @@ if __name__ == '__main__':
     # Prepare the database and default records before starting
     initialize_database()
     # Run the Flask development server
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0')

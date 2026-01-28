@@ -25,6 +25,44 @@ body {
   box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
 }
 
+.link-metrics {
+  min-width: 220px;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.metric-label {
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  color: #64748b;
+}
+
+.metric-value {
+  font-weight: 600;
+}
+
+.link-map-thumb {
+  width: 240px;
+  height: 140px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.15);
+}
+
+.link-map-placeholder {
+  width: 240px;
+  height: 140px;
+  border-radius: 12px;
+  border: 1px dashed rgba(15, 23, 42, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  font-size: 0.85rem;
+  background: rgba(248, 250, 252, 0.9);
+}
+
 .qr-usage-card {
   background: rgba(255, 255, 255, 0.9);
   box-shadow: 0 0.75rem 1.5rem rgba(79, 70, 229, 0.15);

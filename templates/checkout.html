@@ -1,12 +1,52 @@
+{#
+  Checkout placeholder for purchasing a subscription tier.
+  Shows the active price, including special offers when available.
+#}
 {% extends 'base.html' %}
 {% block content %}
 <h2>Checkout: {{ tier.name }}</h2>
 {# Placeholder messaging until Stripe integration is implemented #}
 <p>This is a placeholder checkout page. Payment processing will be added soon.</p>
+<div class="card mb-3">
+  <div class="card-body">
+    <h5 class="card-title">Today's Price</h5>
+    {% if offer_active and effective_price != tier.monthly_price %}
+    <div class="text-muted text-decoration-line-through">${{ '%.2f'|format(tier.monthly_price) }} / mo</div>
+    <div class="fs-4 text-success">${{ '%.2f'|format(effective_price) }} / mo</div>
+    {% if tier.special_offer_name %}
+    <div class="small text-success">{{ tier.special_offer_name }}</div>
+    {% endif %}
+    {% if tier.special_offer_expires_at %}
+    <div class="small text-muted offer-countdown" data-offer-expires="{{ tier.special_offer_expires_at.isoformat() }}"></div>
+    {% endif %}
+    {% else %}
+    <div class="fs-4">${{ '%.2f'|format(effective_price) }} / mo</div>
+    {% endif %}
+  </div>
+</div>
 <form method="post">
   <!-- Include CSRF token on checkout form -->
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <button type="submit" class="btn btn-success">Complete Purchase</button>
   <a href="{{ url_for('pricing') }}" class="btn btn-secondary ms-2">Cancel</a>
 </form>
+{% if offer_active and tier.special_offer_expires_at %}
+<script>
+function updateOfferCountdown() {
+  const el = document.querySelector('.offer-countdown');
+  if (!el) return;
+  const expiresAt = new Date(el.dataset.offerExpires);
+  const remaining = expiresAt.getTime() - Date.now();
+  if (remaining <= 0) {
+    el.textContent = 'Offer ended';
+    return;
+  }
+  const days = Math.floor(remaining / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((remaining / (1000 * 60 * 60)) % 24);
+  el.textContent = `Offer ends in ${days}d ${hours}h`;
+}
+updateOfferCountdown();
+setInterval(updateOfferCountdown, 60000);
+</script>
+{% endif %}
 {% endblock %}

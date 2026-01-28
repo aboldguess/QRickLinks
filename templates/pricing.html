@@ -1,3 +1,7 @@
+{#
+  Public pricing comparison table with dynamic monthly/yearly toggles and offers.
+  The JavaScript below updates pricing, offer labels, and countdowns.
+#}
 {% extends 'base.html' %}
 {% block content %}
 <h2>Pricing</h2>
@@ -25,7 +29,19 @@
     <tr>
       <th>Price Per Month</th>
       {% for tier in tiers %}
-      <td class="price-cell" data-monthly="{{ tier.monthly_price }}" data-yearly="{{ tier.yearly_price }}"></td>
+      <td class="price-cell"
+          data-monthly="{{ tier.monthly_price }}"
+          data-yearly="{{ tier.yearly_price }}"
+          data-offer-active="{{ 'true' if tier.special_offer_active else 'false' }}"
+          data-offer-monthly="{{ tier.special_offer_monthly_price if tier.special_offer_monthly_price is not none else '' }}"
+          data-offer-yearly="{{ tier.special_offer_yearly_price if tier.special_offer_yearly_price is not none else '' }}"
+          data-offer-name="{{ tier.special_offer_name or '' }}"
+          data-offer-expires="{{ tier.special_offer_expires_at.isoformat() if tier.special_offer_expires_at else '' }}">
+        <div class="price-standard"></div>
+        <div class="price-offer fw-semibold text-success"></div>
+        <div class="offer-name small text-success"></div>
+        <div class="offer-countdown small text-muted"></div>
+      </td>
       {% endfor %}
     </tr>
     <tr>
@@ -47,7 +63,19 @@
     <tr>
       <th>Total Cost Today</th>
       {% for tier in tiers %}
-      <td class="total-cell" data-monthly="{{ tier.monthly_price }}" data-yearly="{{ tier.yearly_price }}"></td>
+      <td class="total-cell"
+          data-monthly="{{ tier.monthly_price }}"
+          data-yearly="{{ tier.yearly_price }}"
+          data-offer-active="{{ 'true' if tier.special_offer_active else 'false' }}"
+          data-offer-monthly="{{ tier.special_offer_monthly_price if tier.special_offer_monthly_price is not none else '' }}"
+          data-offer-yearly="{{ tier.special_offer_yearly_price if tier.special_offer_yearly_price is not none else '' }}"
+          data-offer-name="{{ tier.special_offer_name or '' }}"
+          data-offer-expires="{{ tier.special_offer_expires_at.isoformat() if tier.special_offer_expires_at else '' }}">
+        <div class="price-standard"></div>
+        <div class="price-offer fw-semibold text-success"></div>
+        <div class="offer-name small text-success"></div>
+        <div class="offer-countdown small text-muted"></div>
+      </td>
       {% endfor %}
     </tr>
     <tr>
@@ -64,23 +92,67 @@
 <a class="btn btn-primary" href="{{ url_for('subscribe') }}">Subscribe</a>
 {% endif %}
 <script>
+function formatCountdown(expiresAt) {
+  if (!expiresAt) return '';
+  const remaining = expiresAt.getTime() - Date.now();
+  if (remaining <= 0) return 'Offer ended';
+  const days = Math.floor(remaining / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((remaining / (1000 * 60 * 60)) % 24);
+  return `${days}d ${hours}h left`;
+}
+
+function updatePriceCell(cell, yearly, isTotalRow) {
+  const monthly = parseFloat(cell.dataset.monthly || 0);
+  const yearlyPrice = parseFloat(cell.dataset.yearly || 0);
+  const offerActive = cell.dataset.offerActive === 'true';
+  const offerMonthly = parseFloat(cell.dataset.offerMonthly || 0);
+  const offerYearly = parseFloat(cell.dataset.offerYearly || 0);
+  const offerName = cell.dataset.offerName || '';
+  const expiresAt = cell.dataset.offerExpires ? new Date(cell.dataset.offerExpires) : null;
+  const hasOffer = offerActive && (!expiresAt || expiresAt.getTime() > Date.now());
+  const standardPrice = yearly ? (isTotalRow ? yearlyPrice : yearlyPrice / 12) : monthly;
+  const offerPrice = yearly ? (isTotalRow ? offerYearly : offerYearly / 12) : offerMonthly;
+
+  const standardEl = cell.querySelector('.price-standard');
+  const offerEl = cell.querySelector('.price-offer');
+  const nameEl = cell.querySelector('.offer-name');
+  const countdownEl = cell.querySelector('.offer-countdown');
+
+  if (hasOffer && offerPrice > 0) {
+    standardEl.textContent = isTotalRow
+      ? `$${standardPrice.toFixed(2)}`
+      : `$${standardPrice.toFixed(2)} / mo`;
+    standardEl.classList.add('text-decoration-line-through', 'text-muted');
+    offerEl.textContent = isTotalRow
+      ? `$${offerPrice.toFixed(2)}`
+      : `$${offerPrice.toFixed(2)} / mo`;
+    nameEl.textContent = offerName ? offerName : 'Special offer';
+    countdownEl.textContent = formatCountdown(expiresAt);
+  } else {
+    standardEl.textContent = isTotalRow
+      ? `$${standardPrice.toFixed(2)}`
+      : `$${standardPrice.toFixed(2)} / mo`;
+    standardEl.classList.remove('text-decoration-line-through', 'text-muted');
+    offerEl.textContent = '';
+    nameEl.textContent = '';
+    countdownEl.textContent = '';
+  }
+}
+
 function updatePrices() {
   const yearly = document.getElementById('billingYearly').checked;
   document.querySelectorAll('.price-cell').forEach(cell => {
-    const monthly = parseFloat(cell.dataset.monthly || 0);
-    const yearlyPrice = parseFloat(cell.dataset.yearly || 0);
-    const perMonth = yearly ? yearlyPrice / 12 : monthly;
-    cell.textContent = `$${perMonth.toFixed(2)} / mo`;
+    updatePriceCell(cell, yearly, false);
   });
   document.querySelectorAll('.total-cell').forEach(cell => {
-    const monthly = parseFloat(cell.dataset.monthly || 0);
-    const yearlyPrice = parseFloat(cell.dataset.yearly || 0);
-    cell.textContent = yearly ? `$${yearlyPrice.toFixed(2)}` : `$${monthly.toFixed(2)}`;
+    updatePriceCell(cell, yearly, true);
   });
 }
+
 document.querySelectorAll('input[name="billing"]').forEach(el => {
   el.addEventListener('change', updatePrices);
 });
 updatePrices();
+setInterval(updatePrices, 60000);
 </script>
 {% endblock %}

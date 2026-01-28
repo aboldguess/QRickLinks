@@ -1,6 +1,11 @@
+{#
+  Admin user listing table with quick navigation into detailed user management.
+  Provides a high-level summary of usage and billing activity.
+#}
 {% extends 'admin_base.html' %}
 {% block content %}
 <h2>User Accounts</h2>
+<p class="text-muted">Select a user to manage credits, temporary passwords, and review activity.</p>
 <table class="table table-striped">
   <thead>
     <tr>
@@ -8,16 +13,23 @@
       <th>Tier</th>
       <th>Links</th>
       <th>Total Clicks</th>
+      <th>Bonus Credits</th>
       <th>Payments</th>
+      <th></th>
     </tr>
   </thead>
   <tbody>
     {% for row in users %}
     <tr>
-      <td>{{ row.user.email }}</td>
+      <td>
+        <a href="{{ url_for('admin_user_detail', user_id=row.user.id) }}">
+          {{ row.user.email }}
+        </a>
+      </td>
       <td>{{ row.user.tier.name if row.user.tier else 'Free' }}</td>
       <td>{{ row.link_count }}</td>
       <td>{{ row.total_clicks }}</td>
+      <td>{{ row.user.bonus_credits or 0 }}</td>
       <td>
         <ul class="list-unstyled mb-0">
           {% for p in row.payments %}
@@ -26,6 +38,11 @@
           <li>No payments</li>
           {% endfor %}
         </ul>
+      </td>
+      <td>
+        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('admin_user_detail', user_id=row.user.id) }}">
+          Manage
+        </a>
       </td>
     </tr>
     {% endfor %}

@@ -1,6 +1,15 @@
+{#
+  Admin pricing tier configurator for subscription limits and pricing.
+  Includes special offer controls and tier management actions.
+#}
 {% extends 'admin_base.html' %}
 {% block content %}
 <h2>Pricing Tiers</h2>
+<div class="alert alert-info">
+  <strong>How to use this page:</strong> Update base pricing and limits, then
+  optionally configure a special offer (name, discounted pricing, expiry, and
+  active toggle). Offers only display while active and before the expiry date.
+</div>
 <form method="post">
   <!-- Admin tier changes require CSRF protection -->
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -38,6 +47,51 @@
         <th>Highlight</th>
         {% for tier in tiers %}
         <td><input type="text" class="form-control" name="{{ tier.id }}_highlight_text" value="{{ tier.highlight_text }}"></td>
+        {% endfor %}
+        <td></td>
+      </tr>
+      <tr>
+        <th>Special Offer Name</th>
+        {% for tier in tiers %}
+        <td><input type="text" class="form-control" name="{{ tier.id }}_special_offer_name" value="{{ tier.special_offer_name or '' }}"></td>
+        {% endfor %}
+        <td></td>
+      </tr>
+      <tr>
+        <th>Special Offer Monthly Price</th>
+        {% for tier in tiers %}
+        <td><input type="number" step="0.01" class="form-control" name="{{ tier.id }}_special_offer_monthly_price" value="{{ tier.special_offer_monthly_price if tier.special_offer_monthly_price is not none else '' }}"></td>
+        {% endfor %}
+        <td></td>
+      </tr>
+      <tr>
+        <th>Special Offer Yearly Price</th>
+        {% for tier in tiers %}
+        <td><input type="number" step="0.01" class="form-control" name="{{ tier.id }}_special_offer_yearly_price" value="{{ tier.special_offer_yearly_price if tier.special_offer_yearly_price is not none else '' }}"></td>
+        {% endfor %}
+        <td></td>
+      </tr>
+      <tr>
+        <th>Special Offer Active</th>
+        {% for tier in tiers %}
+        <td>
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" name="{{ tier.id }}_special_offer_active" {% if tier.special_offer_active %}checked{% endif %}>
+          </div>
+        </td>
+        {% endfor %}
+        <td></td>
+      </tr>
+      <tr>
+        <th>Special Offer Expiry</th>
+        {% for tier in tiers %}
+        <td>
+          <input
+            type="date"
+            class="form-control"
+            name="{{ tier.id }}_special_offer_expires_at"
+            value="{{ tier.special_offer_expires_at.strftime('%Y-%m-%d') if tier.special_offer_expires_at else '' }}">
+        </td>
         {% endfor %}
         <td></td>
       </tr>

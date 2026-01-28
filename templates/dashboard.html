@@ -83,7 +83,9 @@
 
 <hr>
 <h2 class="d-flex align-items-center">Your links
-  <button class="btn btn-sm btn-outline-secondary ms-auto" onclick="checkAll()">Run Diagnostics</button>
+  {% if current_user.is_admin %}
+  <button class="btn btn-sm btn-outline-secondary ms-auto" onclick="checkAll(true)">Run Diagnostics</button>
+  {% endif %}
 </h2>
 {#
   Each link is displayed as a Bootstrap card instead of a wide table row so the
@@ -91,6 +93,7 @@
   keeps the customisation form collapsed underneath.
 #}
 {% for link in links %}
+{% set stats = link_stats[link.id] %}
 <div class="card mb-3 link-card">
   <div class="card-body">
     <div class="d-md-flex justify-content-between align-items-start">
@@ -102,12 +105,30 @@
         <div><a href="{{ link.code_url }}" target="_blank">{{ link.short_code }}</a></div>
         <div><a href="{{ link.original_url }}" target="_blank">{{ link.original_url }}</a></div>
       </div>
-      <div class="d-flex mb-2">
-        <div class="me-3 text-center">
-          <img src="{{ url_for('serve_qr', filename=link.qr_filename) }}" width="100" class="mb-1">
+      <div class="d-flex flex-wrap gap-3 mb-2">
+        <div class="text-center">
+          <img src="{{ url_for('serve_qr', filename=link.qr_filename) }}" width="100" class="mb-1" alt="QR preview">
           <!-- Show a small screenshot of the original page -->
-          <img src="{{ link.thumbnail_url }}" width="100" class="mb-1" alt="Preview">
-          <div>{{ link.visit_count }} visits</div>
+          <img src="{{ link.thumbnail_url }}" width="100" class="mb-1" alt="Destination preview">
+        </div>
+        <div class="link-metrics">
+          <div class="metric">
+            <span class="metric-label">Total clicks</span>
+            <div class="metric-value">{{ stats.total_clicks }}</div>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Unique clicks</span>
+            <div class="metric-value">{{ stats.unique_clicks }}</div>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Top location</span>
+            <div class="metric-value">{{ stats.most_common_location }}</div>
+          </div>
+          {% if stats.map_url %}
+          <img src="{{ stats.map_url }}" class="link-map-thumb" alt="Click map preview">
+          {% else %}
+          <div class="link-map-placeholder">No map data yet</div>
+          {% endif %}
         </div>
         <div class="link-actions btn-group-vertical">
           <div class="btn-group mb-1">
@@ -116,7 +137,11 @@
             </button>
             <ul class="dropdown-menu">
               <li><a class="dropdown-item" href="{{ url_for('download_qr', filename=link.qr_filename, fmt='png') }}">PNG</a></li>
-              <li><a class="dropdown-item" href="{{ url_for('download_qr', filename=link.qr_filename, fmt='svg') }}">SVG</a></li>
+              <li>
+                <a class="dropdown-item svg-download"
+                   data-has-logo="{{ 'true' if link.logo_filename else 'false' }}"
+                   href="{{ url_for('download_qr', filename=link.qr_filename, fmt='svg') }}">SVG</a>
+              </li>
             </ul>
           </div>
           <a href="{{ url_for('link_details', link_id=link.id) }}" class="btn btn-sm btn-info mb-1">
@@ -125,9 +150,11 @@
           <button class="btn btn-sm btn-outline-primary mb-1" type="button" data-bs-toggle="collapse" data-bs-target="#c{{ link.id }}" aria-expanded="false" aria-controls="c{{ link.id }}">
             <span class="icon-sm">C</span><span class="text-label">Customize</span>
           </button>
-          <button class="btn btn-sm btn-warning mb-1" type="button" onclick="checkLink({{ link.id }})">
+          {% if current_user.is_admin %}
+          <button class="btn btn-sm btn-warning mb-1" type="button" onclick="checkLink({{ link.id }}, true)">
             <span class="icon-sm">?</span><span class="text-label">Check</span>
           </button>
+          {% endif %}
           <form method="post" action="{{ url_for('delete_link', link_id=link.id) }}">
             <!-- CSRF token for the delete request -->
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -205,10 +232,10 @@
           <div class="col-md-2">
             <label for="error_correction{{ link.id }}" class="form-label">Redundancy</label>
             <select id="error_correction{{ link.id }}" name="error_correction" class="form-select" {% if not can_styles %}disabled{% endif %}>
-              <option value="L" {% if link.error_correction == 'L' %}selected{% endif %}>L</option>
-              <option value="M" {% if link.error_correction == 'M' %}selected{% endif %}>M</option>
-              <option value="Q" {% if link.error_correction == 'Q' %}selected{% endif %}>Q</option>
-              <option value="H" {% if link.error_correction == 'H' %}selected{% endif %}>H</option>
+              <option value="L" {% if link.error_correction == 'L' %}selected{% endif %}>Low (L) · 7% recovery</option>
+              <option value="M" {% if link.error_correction == 'M' %}selected{% endif %}>Medium (M) · 15% recovery</option>
+              <option value="Q" {% if link.error_correction == 'Q' %}selected{% endif %}>Quartile (Q) · 25% recovery</option>
+              <option value="H" {% if link.error_correction == 'H' %}selected{% endif %}>High (H) · 30% recovery</option>
             </select>
           </div>
           <div class="col-md-2">
@@ -229,12 +256,12 @@ function updateStatus(id, status) {
   el.className = 'status-indicator status-' + status + ' ms-1';
 }
 
-function checkLink(id) {
+function checkLink(id, showDetails) {
   fetch('/check_site/' + id)
     .then(r => r.json())
     .then(data => {
       updateStatus(id, data.status);
-      if (data.status !== 'ok') {
+      if (showDetails && data.status !== 'ok') {
         const msg = data.message + '\nAttempt automatic fix?';
         if (confirm(msg)) {
           fetch('/check_site/' + id + '?fix=1')
@@ -248,11 +275,27 @@ function checkLink(id) {
     });
 }
 
-function checkAll() {
+function checkAll(showDetails) {
   document.querySelectorAll('.status-indicator').forEach(el => {
     const id = el.dataset.link;
-    if (id) checkLink(id);
+    if (id) checkLink(id, showDetails);
   });
 }
+
+document.querySelectorAll('.svg-download').forEach(link => {
+  link.addEventListener('click', event => {
+    if (link.dataset.hasLogo === 'true') {
+      event.preventDefault();
+      alert('SVG downloads cannot reliably preserve embedded logo colours. Please use PNG for logo-embedded codes.');
+    }
+  });
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+  const isAdmin = {{ 'true' if current_user.is_admin else 'false' }};
+  if (!isAdmin) {
+    checkAll(false);
+  }
+});
 </script>
 {% endblock %}
