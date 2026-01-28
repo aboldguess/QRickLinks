@@ -904,10 +904,13 @@ def register():
 def login():
     """User login page."""
     if request.method == 'POST':
-        # Look up the account purely by email
-        email = request.form.get('email')
+        # Allow authentication via email or username so legacy/admin accounts
+        # can use their original identifiers when signing in.
+        identifier = request.form.get('email', '').strip()
         password = request.form['password']
-        user = User.query.filter_by(email=email).first()
+        user = User.query.filter(
+            (User.email == identifier) | (User.username == identifier)
+        ).first()
         if user and user.check_password(password):
             # Existing accounts created before tiers were introduced won't
             # have a tier assigned. Default them to the free tier so usage
@@ -2088,21 +2091,49 @@ def initialize_database() -> None:
         # Ensure a settings row is present
         get_settings()
 
-        # Create the administrator accounts if they don't already exist
-        if not User.query.filter_by(email='admin@example.com', is_admin=True).first():
-            # Use the same value for email and username to keep older code
-            # functional while relying solely on the email for authentication.
-            admin = User(username='admin@example.com', email='admin@example.com', is_admin=True)
-            admin.set_password('Admin12345')
-            db.session.add(admin)
-        if not User.query.filter_by(username='philadmin', is_admin=True).first():
-            phil_admin = User(
-                username='philadmin',
-                email='philadmin@qricklinks.com',
-                is_admin=True,
-            )
-            phil_admin.set_password('Admin12345')
-            db.session.add(phil_admin)
+        # Create or upgrade the administrator accounts if they don't already exist.
+        # This keeps default credentials available for first-time logins while
+        # avoiding duplicate usernames on existing databases.
+        admin_seeds = [
+            {
+                'username': 'admin@example.com',
+                'email': 'admin@example.com',
+                'password': 'Admin12345',
+            },
+            {
+                'username': 'philadmin',
+                'email': 'philadmin@qricklinks.com',
+                'password': 'Admin12345',
+            },
+        ]
+        for seed in admin_seeds:
+            user = User.query.filter(
+                (User.email == seed['email']) | (User.username == seed['username'])
+            ).first()
+            if user is None:
+                user = User(
+                    username=seed['username'],
+                    email=seed['email'],
+                    is_admin=True,
+                )
+                user.set_password(seed['password'])
+                db.session.add(user)
+            else:
+                updated = False
+                if not user.is_admin:
+                    user.is_admin = True
+                    updated = True
+                if user.email != seed['email']:
+                    user.email = seed['email']
+                    updated = True
+                if user.username != seed['username']:
+                    user.username = seed['username']
+                    updated = True
+                if not user.password_hash:
+                    user.set_password(seed['password'])
+                    updated = True
+                if updated:
+                    db.session.add(user)
         db.session.commit()
 
         # Create some default subscription tiers if none exist.  The free tier
