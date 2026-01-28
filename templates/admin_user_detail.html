@@ -1,0 +1,65 @@
+{#
+  Admin-facing detail page for a single user.
+  Enables credit adjustments and temporary password issuance.
+#}
+{% extends 'admin_base.html' %}
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div>
+    <h2 class="mb-1">User: {{ user.email }}</h2>
+    <p class="text-muted mb-0">Manage account access, credits, and usage snapshots.</p>
+  </div>
+  <a href="{{ url_for('admin_users') }}" class="btn btn-outline-secondary">Back to Users</a>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <h5 class="card-title">Account Snapshot</h5>
+        <ul class="list-unstyled mb-0">
+          <li><strong>Tier:</strong> {{ user.tier.name if user.tier else 'Free' }}</li>
+          <li><strong>Links:</strong> {{ link_count }}</li>
+          <li><strong>Total clicks:</strong> {{ total_clicks }}</li>
+          <li><strong>Bonus credits:</strong> {{ user.bonus_credits or 0 }}</li>
+          <li>
+            <strong>Temp password set:</strong>
+            {{ user.temp_password_set_at.strftime('%Y-%m-%d %H:%M') if user.temp_password_set_at else 'Never' }}
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-8">
+    <div class="card mb-4">
+      <div class="card-body">
+        <h5 class="card-title">Add Bonus Credits</h5>
+        <p class="text-muted">Credits extend the monthly link creation allowance for this user.</p>
+        <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="add_credits">
+          <div class="input-group">
+            <input type="number" class="form-control" name="bonus_credits" min="0" step="1" placeholder="e.g. 10">
+            <button class="btn btn-primary" type="submit">Add Credits</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title">Set Temporary Password</h5>
+        <p class="text-muted">Share this password securely with the user and advise them to reset it after login.</p>
+        <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="temp_password">
+          <div class="mb-3">
+            <label class="form-label" for="temporary_password">Temporary Password (optional)</label>
+            <input type="text" class="form-control" id="temporary_password" name="temporary_password" placeholder="Leave blank to auto-generate">
+          </div>
+          <button class="btn btn-warning" type="submit">Set Temporary Password</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
